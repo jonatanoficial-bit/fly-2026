@@ -1,7 +1,6 @@
 // js/data.js
-(async function () {
-  const STORAGE_KEY = "flysim_save_v1";
-  const DLC_DOC_PATH = { col: "public", doc: "dlc" };
+(function () {
+  const STORAGE_KEY = "flysim_save_v2_econ";
 
   function uid(prefix) {
     return `${prefix}-${Math.random().toString(16).slice(2, 8)}${Date.now().toString(16).slice(-4)}`.toUpperCase();
@@ -21,7 +20,36 @@
   }
 
   const DEFAULT_DATA = {
-    meta: { version: 2 },
+    meta: { version: 3 },
+
+    time: {
+      day: 1,
+      hour: 8, // 0..23
+      autoSim: true, // simulação automática
+      tickMinutes: 30 // cada tick = 30min de jogo
+    },
+
+    economy: {
+      // custos base
+      airportFeePerFlight: 2500, // taxa fixa por voo
+      fuelPricePerUnit: 6, // preço por "unidade" (simples)
+      salaryDailyMultiplier: 1, // 1 = paga 1x soma salários por dia
+
+      // demanda / ocupação
+      baseOccupancy: 0.68, // 68%
+      repImpact: 0.002, // +0.2% por ponto de reputação acima/abaixo de 50
+      lowConditionPenaltyAt: 70, // abaixo disso começa penalidade
+      lowConditionPenaltyMax: 0.18, // até -18% ocupação
+      delayChanceAtVeryLow: 0.25, // chance de "atraso" financeiro quando muito ruim
+
+      // desgaste / manutenção
+      conditionLossPerKm: 0.0018, // perde 0.18% a cada 100km
+      maintenance: {
+        baseCost: 80000,
+        costPerConditionPoint: 6000, // custo para recuperar 1 ponto de condição
+        hoursRequired: 10 // horas de jogo em manutenção
+      }
+    },
 
     company: {
       name: "Fly-202",
@@ -29,6 +57,11 @@
       fuel: 50000,
       co2Credits: 1000,
       reputation: 50
+    },
+
+    ledger: {
+      // últimos lançamentos (máx 40)
+      entries: []
     },
 
     airports: [
@@ -40,7 +73,6 @@
       { code: "POA", city: "Porto Alegre", lat: -29.9939, lon: -51.1711 }
     ],
 
-    // Catálogo local (fallback). DLC do Firestore entra junto.
     aircraftCatalog: [
       { modelId: "CAT-A320", name: "A320 (Genérico)", manufacturer: "Airbus", seats: 180, rangeKm: 6100, cruiseKts: 450, price: 450000000, fuelBurnPerKm: 2.4 },
       { modelId: "CAT-B737", name: "737 (Genérico)", manufacturer: "Boeing", seats: 170, rangeKm: 5600, cruiseKts: 440, price: 430000000, fuelBurnPerKm: 2.3 },
@@ -48,7 +80,14 @@
     ],
 
     fleet: [
-      { aircraftId: "AC-0001", modelId: "CAT-E195", tailNumber: "PP-FLY", condition: 92, status: "IDLE" }
+      {
+        aircraftId: "AC-0001",
+        modelId: "CAT-E195",
+        tailNumber: "PP-FLY",
+        condition: 92,
+        status: "IDLE", // IDLE | ASSIGNED | MAINTENANCE
+        maintenance: null // { endsAtDay, endsAtHour }
+      }
     ],
 
     staff: [
@@ -79,7 +118,7 @@
     try { return JSON.parse(raw); } catch { return null; }
   }
 
-  function loadLocal() {
+  function load() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(DEFAULT_DATA);
     const parsed = safeParse(raw);
@@ -87,41 +126,43 @@
     return { ...structuredClone(DEFAULT_DATA), ...parsed };
   }
 
-  function saveLocal(data) {
+  function save(data) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }
 
-  function normalizeArrayByKey(arr, key) {
-    const map = new Map();
-    for (const item of (arr || [])) {
-      if (!item || item[key] == null) continue;
-      map.set(item[key], item);
-    }
-    return map;
+  function ledgerPush(data, entry) {
+    const e = {
+      id: uid("LED"),
+      atDay: data.time?.day ?? 1,
+      atHour: data.time?.hour ?? 0,
+      ts: Date.now(),
+      ...entry
+    };
+    data.ledger.entries = Array.isArray(data.ledger.entries) ? data.ledger.entries : [];
+    data.ledger.entries.unshift(e);
+    data.ledger.entries = data.ledger.entries.slice(0, 40);
   }
 
-  // Mescla arrays por chave (DLC sobrescreve locais pelo mesmo ID)
-  function mergeByKey(localArr, dlcArr, key) {
-    const base = normalizeArrayByKey(localArr, key);
-    const dlc = normalizeArrayByKey(dlcArr, key);
-    for (const [k, v] of dlc.entries()) base.set(k, v);
-    return Array.from(base.values());
-  }
-
-  // ====== VOOS ======
   function generateFlightsForRoutes(data) {
     const now = Date.now();
     const flights = [];
 
+    const airports = data.airports || [];
+    const fleet = data.fleet || [];
+    const catalog = data.aircraftCatalog || [];
+
     for (const r of (data.routes || []).filter(x => x.active)) {
-      const origin = (data.airports || []).find(a => a.code === r.origin);
-      const dest = (data.airports || []).find(a => a.code === r.destination);
+      const origin = airports.find(a => a.code === r.origin);
+      const dest = airports.find(a => a.code === r.destination);
       if (!origin || !dest) continue;
 
-      const aircraft = (data.fleet || []).find(f => f.aircraftId === r.assignedAircraftId);
+      const aircraft = fleet.find(f => f.aircraftId === r.assignedAircraftId);
       if (!aircraft) continue;
 
-      const model = (data.aircraftCatalog || []).find(m => m.modelId === aircraft.modelId);
+      // se está em manutenção, não gera voos
+      if (aircraft.status === "MAINTENANCE") continue;
+
+      const model = catalog.find(m => m.modelId === aircraft.modelId);
       if (!model) continue;
 
       const distanceKm = kmBetween(
@@ -143,17 +184,27 @@
           origin,
           destination: dest,
 
-          status: "ATIVO",
+          status: "SCHEDULED", // SCHEDULED | ACTIVE | COMPLETED
+          depDay: data.time.day,
+          depHour: 6 + i * Math.max(1, Math.floor(12 / n)), // distribui ao longo do dia
+          etaHours: Math.max(1, Math.round(distanceKm / 750)), // aproximação
+
           speedKts: model.cruiseKts,
           altitudeFt: 28000,
 
           distanceKm,
           ticketPrice: r.ticketPrice,
 
-          progress01: Math.random() * 0.2,
-          position: {
-            lat: origin.lat + (Math.random() - 0.5) * 0.2,
-            lon: origin.lon + (Math.random() - 0.5) * 0.2
+          progress01: 0,
+          position: { lat: origin.lat, lon: origin.lon },
+
+          economy: {
+            passengers: 0,
+            occupancy01: 0,
+            revenue: 0,
+            costs: 0,
+            profit: 0,
+            delayed: false
           },
 
           createdAt: now
@@ -162,79 +213,31 @@
     }
 
     data.flights = flights;
-    saveLocal(data);
+    save(data);
   }
 
-  // ====== Firestore DLC (leitura pública) ======
-  async function loadDLCFromFirestore() {
-    // Se não tiver config, apenas fallback
-    if (!window.FIREBASE_CONFIG) return null;
+  // Boot
+  const state = load();
 
-    try {
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
-      const { getFirestore, doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
-
-      const app = initializeApp(window.FIREBASE_CONFIG);
-      const db = getFirestore(app);
-      const ref = doc(db, DLC_DOC_PATH.col, DLC_DOC_PATH.doc);
-
-      const snap = await getDoc(ref);
-      if (!snap.exists()) return null;
-      return snap.data();
-    } catch (e) {
-      console.warn("DLC Firestore indisponível (offline ou erro):", e);
-      return null;
-    }
-  }
-
-  // ===== Boot =====
-  const state = loadLocal();
-
-  // carrega DLC e aplica
-  const dlc = await loadDLCFromFirestore();
-  if (dlc) {
-    // airports por code
-    state.airports = mergeByKey(state.airports, dlc.airports, "code");
-    // catálogo por modelId
-    state.aircraftCatalog = mergeByKey(state.aircraftCatalog, dlc.aircraftCatalog, "modelId");
-    // missions por id (se vierem sem id, não mescla por id; admin-firebase pode salvar sem id)
-    if (Array.isArray(dlc.missions)) {
-      // se não tiver id, cria id estável
-      const normalized = dlc.missions.map((m) => {
-        if (m && m.id) return m;
-        const h = `${m?.title ?? "MS"}-${m?.difficulty ?? ""}-${m?.reward ?? ""}`.replace(/\s+/g, "-");
-        return { id: `MS-${h}`.toUpperCase(), ...m };
-      });
-      state.missions = mergeByKey(state.missions, normalized, "id");
-    }
-    // candidates por id (se vierem sem id, cria)
-    if (Array.isArray(dlc.candidates)) {
-      const normalized = dlc.candidates.map((c) => {
-        if (c && c.id) return c;
-        const h = `${c?.name ?? "C"}-${c?.role ?? ""}-${c?.salary ?? ""}`.replace(/\s+/g, "-");
-        return { id: `C-${h}`.toUpperCase(), ...c };
-      });
-      state.candidates = mergeByKey(state.candidates, normalized, "id");
-    }
-
-    // salva o state com DLC aplicado (não perde save)
-    saveLocal(state);
-  }
+  // garante estruturas
+  state.ledger = state.ledger || { entries: [] };
+  state.time = state.time || structuredClone(DEFAULT_DATA.time);
+  state.economy = { ...structuredClone(DEFAULT_DATA.economy), ...(state.economy || {}) };
 
   // se não tem voos, gera
-  if (!state.flights || state.flights.length === 0) {
+  if (!Array.isArray(state.flights) || state.flights.length === 0) {
     generateFlightsForRoutes(state);
   } else {
-    saveLocal(state);
+    save(state);
   }
 
-  // APIs globais
   window.FlySimStore = {
     STORAGE_KEY,
     uid,
-    load: () => loadLocal(),
-    save: (d) => saveLocal(d),
+    load: () => load(),
+    save: (d) => save(d),
     kmBetween,
+    ledgerPush,
     generateFlightsForRoutes
   };
 
