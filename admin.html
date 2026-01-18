@@ -1,77 +1,50 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administração - Flight Simulator</title>
-    <link rel="stylesheet" href="css/admin.css">
-    <!-- Font Awesome para ícones -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-VnlT1k5qjeiZwzXfAhOozbR5aMTRXXmxVA9rjqEf4x3L8F5wfv4ByzO2qV+F9eHeT3iMRS78V3BA1h9Vbo/n1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - FlySim</title>
+  <link rel="stylesheet" href="css/admin.css" />
 </head>
 <body>
-    <header class="admin-header">
-        <h1>Painel de Administração</h1>
-        <a href="index.html" class="back-link"><i class="fa fa-arrow-left"></i> Voltar ao jogo</a>
-    </header>
-    <main class="admin-container">
-        <section id="loginSection">
-            <h2>Login de Administrador</h2>
-            <p>Insira a senha para acessar o painel:</p>
-            <input type="password" id="adminPassword" placeholder="Senha">
-            <button id="loginBtn" class="btn">Entrar</button>
-            <p id="loginError" class="error" style="display:none;">Senha incorreta!</p>
-        </section>
-        <section id="adminSection" style="display:none;">
-            <h2>Gerenciar Dados</h2>
-            <div class="form-section">
-                <h3>Adicionar Modelo de Avião</h3>
-                <form id="planeForm">
-                    <label>ID do Modelo</label>
-                    <input type="text" id="planeId" required>
-                    <label>Nome</label>
-                    <input type="text" id="planeName" required>
-                    <label>Alcance (km)</label>
-                    <input type="number" id="planeRange" required>
-                    <label>Capacidade</label>
-                    <input type="number" id="planeCapacity" required>
-                    <label>Velocidade (km/h)</label>
-                    <input type="number" id="planeSpeed" required>
-                    <label>Arquivo GLB (URL ou nome do arquivo)</label>
-                    <input type="text" id="planeFile">
-                    <button type="submit" class="btn">Adicionar Modelo</button>
-                </form>
-            </div>
-            <div class="form-section">
-                <h3>Adicionar Missão</h3>
-                <form id="missionForm">
-                    <label>ID da Missão</label>
-                    <input type="number" id="missionId" required>
-                    <label>Nome</label>
-                    <input type="text" id="missionName" required>
-                    <label>Descrição</label>
-                    <textarea id="missionDesc" required></textarea>
-                    <label>Recompensa ($)</label>
-                    <input type="number" id="missionReward" required>
-                    <label>Origem (IATA)</label>
-                    <input type="text" id="missionOrigin" required>
-                    <label>Destino (IATA)</label>
-                    <input type="text" id="missionDest" required>
-                    <label>Modelo Requerido</label>
-                    <input type="text" id="missionPlane" required>
-                    <button type="submit" class="btn">Adicionar Missão</button>
-                </form>
-            </div>
-            <div class="form-section">
-                <h3>Modelos Cadastrados</h3>
-                <ul id="planeList"></ul>
-            </div>
-            <div class="form-section">
-                <h3>Missões Cadastradas</h3>
-                <ul id="missionList"></ul>
-            </div>
-        </section>
-    </main>
-    <script src="js/data.js"></script>
-    <script src="js/admin.js"></script>
+  <header class="admin-header">
+    <div class="admin-title">Administração (Editor)</div>
+    <a class="back-link" href="index.html">← Voltar</a>
+  </header>
+
+  <main class="admin-container">
+
+    <!-- LOGIN -->
+    <section id="loginSection" class="card">
+      <h2>Entrar</h2>
+      <p class="muted">
+        Aviso: no GitHub Pages isso é apenas “modo editor” (não é segurança real).
+      </p>
+
+      <div class="grid">
+        <label>Senha</label>
+        <input id="adminPass" type="password" placeholder="Digite a senha" />
+        <button id="loginBtn" class="btn">Entrar</button>
+        <div id="loginMsg" class="muted"></div>
+      </div>
+    </section>
+
+    <!-- PAINEL -->
+    <section id="panelSection" class="card hidden">
+      <h2>Painel Admin</h2>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="catalog">Catálogo</button>
+        <button class="tab" data-tab="airports">Aeroportos</button>
+        <button class="tab" data-tab="candidates">Candidatos</button>
+        <button class="tab" data-tab="missions">Missões</button>
+      </div>
+
+      <div id="tabArea"></div>
+    </section>
+
+  </main>
+
+  <script src="js/admin.js"></script>
 </body>
 </html>
