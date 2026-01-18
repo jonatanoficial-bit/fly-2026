@@ -25,10 +25,16 @@ const MapModule = (function () {
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
+    // Realtime DLC event
+    window.addEventListener("dlc-updated", () => {
+      refresh();
+    });
+
     refresh();
   }
 
   function refresh() {
+    if (!map) return;
     clearAll();
     renderRoutes();
     renderFlights();
@@ -46,18 +52,18 @@ const MapModule = (function () {
   function renderRoutes() {
     const d = window.flightData;
 
-    d.routes.forEach(r => {
-      const o = d.airports.find(a => a.code === r.origin);
-      const de = d.airports.find(a => a.code === r.destination);
+    (d.routes || []).forEach(r => {
+      const o = (d.airports || []).find(a => a.code === r.origin);
+      const de = (d.airports || []).find(a => a.code === r.destination);
       if (!o || !de) return;
 
       const line = L.polyline(
         [[o.lat, o.lon], [de.lat, de.lon]],
         { weight: r.active ? 4 : 2, opacity: r.active ? 0.8 : 0.35 }
       ).addTo(map);
+
       routeLines[r.routeId] = line;
 
-      // marcador no meio da rota
       const mid = { lat: (o.lat + de.lat) / 2, lon: (o.lon + de.lon) / 2 };
       const marker = L.circleMarker([mid.lat, mid.lon], {
         radius: 7,
@@ -95,7 +101,7 @@ const MapModule = (function () {
       popupAnchor: [0, -18]
     });
 
-    d.flights.forEach(f => {
+    (d.flights || []).forEach(f => {
       const marker = L.marker([f.position.lat, f.position.lon], { icon }).addTo(map);
       flightMarkers[f.id] = marker;
 
@@ -119,18 +125,18 @@ const MapModule = (function () {
   }
 
   function focusFlight(id) {
-    const f = window.flightData.flights.find(x => x.id === id);
+    const f = (window.flightData.flights || []).find(x => x.id === id);
     if (!f) return;
     map.setView([f.position.lat, f.position.lon], 6, { animate: true });
     flightMarkers[id]?.openPopup();
   }
 
   function focusRoute(routeId) {
-    const r = window.flightData.routes.find(x => x.routeId === routeId);
+    const r = (window.flightData.routes || []).find(x => x.routeId === routeId);
     if (!r) return;
 
-    const o = window.flightData.airports.find(a => a.code === r.origin);
-    const de = window.flightData.airports.find(a => a.code === r.destination);
+    const o = (window.flightData.airports || []).find(a => a.code === r.origin);
+    const de = (window.flightData.airports || []).find(a => a.code === r.destination);
     if (!o || !de) return;
 
     const bounds = L.latLngBounds([[o.lat, o.lon], [de.lat, de.lon]]);
