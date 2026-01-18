@@ -23,6 +23,40 @@
   <script src="https://unpkg.com/three@0.159.0/build/three.min.js" defer></script>
 
   <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Debug UI minimal (se seu CSS estiver interferindo, isso garante visibilidade) -->
+  <style>
+    #mapLoading {
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      color: rgba(255,255,255,.85);
+      font-weight: 900;
+      letter-spacing: .2px;
+      background: radial-gradient(circle at 20% 20%, rgba(46,167,255,.12), transparent 55%),
+                  radial-gradient(circle at 80% 30%, rgba(255,255,255,.06), transparent 55%),
+                  #08101d;
+      z-index: 10;
+      pointer-events:none;
+    }
+    #debugPanel {
+      position:fixed;
+      left:12px;
+      bottom:12px;
+      right:12px;
+      max-height: 38vh;
+      overflow:auto;
+      background: rgba(0,0,0,.72);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #fff;
+      z-index: 9999;
+      display:none;
+      white-space: pre-wrap;
+    }
+    #debugPanel b{ display:block; margin-bottom:6px; }
+  </style>
 </head>
 
 <body>
@@ -36,7 +70,9 @@
   </header>
 
   <main id="app">
-    <div id="map"></div>
+    <div id="map">
+      <div id="mapLoading">Carregando mapa...</div>
+    </div>
 
     <div class="hud">
       <div class="hud-card">
@@ -45,10 +81,14 @@
           <button id="btnCenter" class="btn">Centralizar</button>
           <button id="btnRoutes" class="btn">Rotas</button>
           <button id="btnFleet" class="btn">Frota</button>
-          <button id="btnNextDay" class="btn ghost">Avançar 1 dia</button>
         </div>
+
+        <div class="hud-row" style="margin-top:6px;">
+          <button id="btnPanel" class="btn ghost">Abrir Painel</button>
+        </div>
+
         <div class="hud-hint">
-          Economia + manutenção ativas. DLC em tempo real continua funcionando.
+          Se algo falhar, um painel de debug aparecerá no rodapé com o erro.
         </div>
       </div>
     </div>
@@ -101,47 +141,21 @@
 
   <div id="backdrop" class="backdrop hidden"></div>
 
-  <!-- Firebase config global (DLC realtime) -->
+  <!-- Debug panel -->
+  <div id="debugPanel"><b>DEBUG</b><div id="debugText"></div></div>
+
+  <!-- Firebase config (para DLC realtime) -->
   <script src="js/firebase-config.js"></script>
 
-  <!-- Base do jogo -->
+  <!-- Ordem correta -->
   <script src="js/data.js"></script>
-
-  <!-- DLC realtime -->
   <script src="js/dlc.js"></script>
 
-  <!-- Economia + manutenção -->
-  <script src="js/economy.js"></script>
-
-  <!-- UI / Mapa / 3D -->
   <script src="js/ui.js"></script>
   <script src="js/map.js"></script>
   <script src="js/game.js"></script>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      UIModule.init();
-
-      MapModule.init({
-        mapId: "map",
-        center: [-23.55052, -46.633308],
-        zoom: 4
-      });
-
-      EconomyModule.init(); // inicia simulação
-
-      document.getElementById("btnCenter").addEventListener("click", () => MapModule.centerOnCompany());
-      document.getElementById("btnRoutes").addEventListener("click", () => { UIModule.openPanel(); UIModule.selectTab("routes"); });
-      document.getElementById("btnFleet").addEventListener("click", () => { UIModule.openPanel(); UIModule.selectTab("fleet"); });
-
-      document.getElementById("btnNextDay").addEventListener("click", () => {
-        EconomyModule.advanceDays(1);
-      });
-
-      const help = document.getElementById("flightHelp");
-      document.getElementById("btnHelp").addEventListener("click", () => help.classList.remove("hidden"));
-      document.getElementById("btnCloseHelp").addEventListener("click", () => help.classList.add("hidden"));
-    });
-  </script>
+  <!-- Bootstrap (inicializa com retry + debug on-screen) -->
+  <script src="js/bootstrap.js"></script>
 </body>
 </html>
