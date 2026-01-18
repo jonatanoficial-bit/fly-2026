@@ -1,75 +1,47 @@
-/**
- * Dados estáticos para o jogo. Estes dados podem ser carregados
- * via API ou banco de dados em uma implementação completa.
- */
-
+// Dados base do jogo (pode virar DLC/updates no futuro)
 window.flightData = {
-    company: {
-        cash: 10000000,     // orçamento inicial em dólares
-        fuel: 50000,        // litros de combustível
-        co2Credits: 1000    // créditos de CO2 para compensação
+  company: {
+    name: "Fly-202",
+    cash: 10000000,
+    fuel: 50000,
+    co2Credits: 1000
+  },
+
+  flights: [
+    {
+      id: "FL-001",
+      flightNumber: "VA 202",
+      origin: { code: "GRU", city: "São Paulo", lat: -23.4356, lon: -46.4731 },
+      destination: { code: "GIG", city: "Rio de Janeiro", lat: -22.8099, lon: -43.2506 },
+      status: "Em voo",
+      speedKts: 420,
+      altitudeFt: 28000,
+      position: { lat: -23.10, lon: -45.60 }
     },
-    flights: [
-        {
-            id: 1,
-            flightNumber: "BR1001",
-            origin: { city: "São Paulo", code: "GRU", lat: -23.4356, lon: -46.4731 },
-            destination: { city: "Rio de Janeiro", code: "GIG", lat: -22.8090, lon: -43.2506 },
-            position: { lat: -23.2, lon: -45.8 },
-            status: "Em rota",
-            planeModel: "A320"
-        },
-        {
-            id: 2,
-            flightNumber: "BR2002",
-            origin: { city: "São Paulo", code: "GRU", lat: -23.4356, lon: -46.4731 },
-            destination: { city: "Porto Alegre", code: "POA", lat: -29.9940, lon: -51.1715 },
-            position: { lat: -24.5, lon: -47.5 },
-            status: "Em rota",
-            planeModel: "B737"
-        }
-    ],
-    staff: [
-        { id: 1, name: "Carlos Oliveira", role: "Piloto", salary: 120000, happiness: 0.85 },
-        { id: 2, name: "Mariana Souza", role: "Copiloto", salary: 80000, happiness: 0.75 },
-        { id: 3, name: "João Almeida", role: "Engenheiro de Voo", salary: 60000, happiness: 0.70 }
-    ],
-    missions: [
-        {
-            id: 1,
-            name: "Transporte de passageiros",
-            description: "Leve 150 passageiros de São Paulo para Rio de Janeiro sem atrasos.",
-            reward: 500000,
-            origin: "GRU",
-            destination: "GIG",
-            planeRequired: "A320"
-        },
-        {
-            id: 2,
-            name: "Carga urgente",
-            description: "Entregue equipamentos médicos de São Paulo a Porto Alegre.",
-            reward: 350000,
-            origin: "GRU",
-            destination: "POA",
-            planeRequired: "B737"
-        }
-    ],
-    planeModels: [
-        {
-            id: "A320",
-            name: "Airbus A320",
-            range: 6150,   // em quilômetros
-            capacity: 150,
-            speed: 828,    // km/h
-            file: null     // referência a arquivo GLTF (poderá ser carregado via admin)
-        },
-        {
-            id: "B737",
-            name: "Boeing 737",
-            range: 5100,
-            capacity: 160,
-            speed: 842,
-            file: null
-        }
-    ]
+    {
+      id: "FL-002",
+      flightNumber: "VA 303",
+      origin: { code: "BSB", city: "Brasília", lat: -15.8697, lon: -47.9208 },
+      destination: { code: "SSA", city: "Salvador", lat: -12.9086, lon: -38.3225 },
+      status: "Aguardando",
+      speedKts: 0,
+      altitudeFt: 0,
+      position: { lat: -15.90, lon: -47.90 }
+    }
+  ],
+
+  staff: [
+    { id: "ST-001", name: "Piloto", role: "Comandante", salary: 18000, morale: 82 },
+    { id: "ST-002", name: "Mecânico", role: "Manutenção", salary: 9000, morale: 76 },
+    { id: "ST-003", name: "Comissário", role: "Cabine", salary: 6500, morale: 88 }
+  ],
+
+  missions: [
+    { id: "MS-001", title: "Carga Express", reward: 120000, difficulty: "Média", description: "Entregar carga sensível no prazo." },
+    { id: "MS-002", title: "Voo VIP", reward: 220000, difficulty: "Alta", description: "Transportar passageiro VIP com conforto máximo." }
+  ],
+
+  aircraftModels: [
+    { id: "AC-001", name: "Jet Genérico", manufacturer: "Vale Air", rangeKm: 5200, seats: 180 }
+  ]
 };
