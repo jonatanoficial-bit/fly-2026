@@ -1,179 +1,201 @@
-/**
- * Módulo responsável pelo simulador 3D usando three.js.  Criamos uma cena
- * simples com um avião representado por geometria básica (pode ser
- * substituído por um modelo GLTF via GLTFLoader no futuro【945860909363583†L206-L214】).
- * A câmera segue o avião em terceira pessoa.  Os controles permitem ao
- * usuário inclinar e virar a aeronave com as setas do teclado ou WASD.
- */
-
 const GameModule = (function () {
-    let scene, camera, renderer;
-    let planeMesh;
-    let animationId;
-    let flightData;
-    let speed = 0.5;
-    let pitch = 0;
-    let yaw = 0;
-    let roll = 0;
-    let keys = {};
+  let renderer, scene, camera, plane;
+  let running = false;
+  let keys = {};
+  let speed = 0.35; // velocidade base
+  let yaw = 0, pitch = 0, roll = 0;
 
-    /**
-     * Inicializa a cena 3D quando necessário.  Cria câmera, luzes e o avião.
-     */
-    function init() {
-        const container = document.getElementById('threeContainer');
-        container.innerHTML = '';
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(container.clientWidth, container.clientHeight);
-        container.appendChild(renderer.domElement);
+  function getFlightById(id) {
+    return window.flightData.flights.find(f => f.id === id);
+  }
 
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87ceeb); // céu azul
+  function startFlight(flightId) {
+    const f = getFlightById(flightId);
+    if (!f) return;
 
-        camera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.1, 1000);
-        camera.position.set(0, 5, 10);
+    // Mostrar overlay
+    const view = document.getElementById("flightView");
+    view.classList.remove("hidden");
 
-        // Luz ambiente e direcional
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 10, 7.5);
-        scene.add(directionalLight);
+    document.getElementById("flightTitle").textContent =
+      `${f.flightNumber} — ${f.origin.code} → ${f.destination.code}`;
 
-        // Plano de chão
-        const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
-        const groundMaterial = new THREE.MeshPhongMaterial({ color: 0x228B22 });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -1;
-        scene.add(ground);
+    // Setup 3D
+    initThree();
+    bindControls();
 
-        // Cria avião como um grupo de formas básicas
-        planeMesh = createSimplePlane();
-        scene.add(planeMesh);
+    // Botão sair
+    document.getElementById("btnExitFlight").onclick = stopFlight;
 
-        // Eventos de teclado
-        window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
-        window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+    running = true;
+    animate();
+  }
 
-        // Ajusta tamanho do renderer ao redimensionar janela
-        window.addEventListener('resize', onWindowResize);
-    }
+  function initThree() {
+    const canvas = document.getElementById("flightCanvas");
 
-    /**
-     * Cria uma representação simplificada de um avião usando
-     * geometria básica.  Isso pode ser substituído por uma
-     * importação de modelo GLTF quando disponível【945860909363583†L206-L214】.
-     */
-    function createSimplePlane() {
-        const group = new THREE.Group();
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    resize();
 
-        // Fuselagem
-        const fuselageGeo = new THREE.CylinderGeometry(0.3, 0.3, 4, 12);
-        const fuselageMat = new THREE.MeshPhongMaterial({ color: 0xdddddd });
-        const fuselage = new THREE.Mesh(fuselageGeo, fuselageMat);
-        fuselage.rotation.z = Math.PI / 2;
-        group.add(fuselage);
+    // Cena
+    scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x050a12, 50, 700);
 
-        // Asas
-        const wingGeo = new THREE.BoxGeometry(4, 0.1, 1);
-        const wingMat = new THREE.MeshPhongMaterial({ color: 0x999999 });
-        const wing = new THREE.Mesh(wingGeo, wingMat);
-        wing.position.set(0, 0, 0);
-        group.add(wing);
+    // Câmera
+    camera = new THREE.PerspectiveCamera(65, canvas.clientWidth / canvas.clientHeight, 0.1, 2000);
 
-        // Cauda vertical
-        const tailGeo = new THREE.BoxGeometry(0.1, 0.8, 0.4);
-        const tailMat = new THREE.MeshPhongMaterial({ color: 0x888888 });
-        const tail = new THREE.Mesh(tailGeo, tailMat);
-        tail.position.set(-2, 0.4, 0);
-        group.add(tail);
+    // Luzes
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambient);
 
-        group.scale.set(1, 1, 1);
-        return group;
-    }
+    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+    dir.position.set(50, 120, 40);
+    scene.add(dir);
 
-    /**
-     * Inicia o voo para um voo específico, posicionando o avião
-     * na coordenada de origem e exibindo o simulador.
-     * @param {Object} flight Objeto de voo contendo posição inicial
-     */
-    function startFlight(flight) {
-        // se ainda não inicializado, faz a inicialização
-        if (!renderer) init();
-        // define dados do voo atual
-        flightData = flight;
-        // posiciona o avião na origem
-        planeMesh.position.set(0, 0, 0);
-        planeMesh.rotation.set(0, 0, 0);
-        pitch = yaw = roll = 0;
-        speed = 0.2;
-        // mostra container 3D e oculta mapa
-        document.getElementById('threeContainer').style.display = 'block';
-        document.getElementById('map').style.display = 'none';
-        // inicia loop de animação
-        animate();
-    }
+    // Céu simples
+    const sky = new THREE.Mesh(
+      new THREE.SphereGeometry(1200, 32, 32),
+      new THREE.MeshBasicMaterial({ color: 0x061a33, side: THREE.BackSide })
+    );
+    scene.add(sky);
 
-    /**
-     * Loop de animação que atualiza a posição do avião e da câmera.
-     */
-    function animate() {
-        animationId = requestAnimationFrame(animate);
+    // Chão
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(4000, 4000, 40, 40),
+      new THREE.MeshStandardMaterial({ color: 0x0b2a1a, roughness: 1 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -10;
+    scene.add(ground);
 
-        // Processa controles
-        if (keys['arrowup'] || keys['w']) pitch += 0.01;
-        if (keys['arrowdown'] || keys['s']) pitch -= 0.01;
-        if (keys['arrowleft'] || keys['a']) yaw += 0.01;
-        if (keys['arrowright'] || keys['d']) yaw -= 0.01;
-        if (keys['q']) roll += 0.01;
-        if (keys['e']) roll -= 0.01;
-        if (keys['+'] || keys['=']) speed += 0.01;
-        if (keys['-'] || keys['_']) speed = Math.max(0.05, speed - 0.01);
+    // Avião (placeholder — depois você troca por GLTF)
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5, 0.6, 6, 16),
+      new THREE.MeshStandardMaterial({ color: 0xddddff, metalness: 0.2, roughness: 0.6 })
+    );
+    body.rotation.z = Math.PI / 2;
 
-        // Aplica rotações
-        planeMesh.rotation.x = pitch;
-        planeMesh.rotation.y = yaw;
-        planeMesh.rotation.z = roll;
+    const wing = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 6, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0xbad6ff, metalness: 0.1, roughness: 0.6 })
+    );
+    wing.rotation.x = Math.PI / 2;
 
-        // Calcula vetor de direção (eixo x positivo do cilindro)
-        const forward = new THREE.Vector3(1, 0, 0);
-        forward.applyQuaternion(planeMesh.quaternion);
-        planeMesh.position.add(forward.multiplyScalar(speed));
+    const tail = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 1.8, 0.7),
+      new THREE.MeshStandardMaterial({ color: 0xbad6ff, metalness: 0.1, roughness: 0.6 })
+    );
+    tail.position.x = -2.6;
+    tail.rotation.x = Math.PI / 2;
 
-        // Move câmera atrás do avião
-        const cameraOffset = new THREE.Vector3(-8, 4, 0);
-        cameraOffset.applyQuaternion(planeMesh.quaternion);
-        camera.position.copy(planeMesh.position.clone().add(cameraOffset));
-        camera.lookAt(planeMesh.position);
+    plane = new THREE.Group();
+    plane.add(body);
+    plane.add(wing);
+    plane.add(tail);
+    plane.position.set(0, 30, 0);
+    scene.add(plane);
 
-        renderer.render(scene, camera);
-    }
+    // Reset controles
+    yaw = 0; pitch = 0; roll = 0;
+    speed = 0.35;
 
-    /**
-     * Ajusta o tamanho do renderizador quando a janela ou o container muda.
-     */
-    function onWindowResize() {
-        if (!renderer || !camera) return;
-        const container = document.getElementById('threeContainer');
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-    }
+    window.addEventListener("resize", resize);
+  }
 
-    /**
-     * Termina o modo de voo e volta para o mapa.
-     */
-    function endFlight() {
-        cancelAnimationFrame(animationId);
-        document.getElementById('threeContainer').style.display = 'none';
-        document.getElementById('map').style.display = 'block';
-    }
+  function resize() {
+    const canvas = document.getElementById("flightCanvas");
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
 
-    return {
-        startFlight,
-        endFlight
-    };
+    if (!renderer || !camera || w === 0 || h === 0) return;
+
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+
+  function bindControls() {
+    keys = {};
+
+    window.onkeydown = (e) => { keys[e.key.toLowerCase()] = true; };
+    window.onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
+
+    // Setas também (mobile teclado/bt)
+    window.addEventListener("keydown", (e) => {
+      if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) e.preventDefault();
+    }, { passive: false });
+  }
+
+  function update() {
+    // Pitch (setas)
+    if (keys["arrowup"]) pitch += 0.012;
+    if (keys["arrowdown"]) pitch -= 0.012;
+
+    // Yaw (A/D)
+    if (keys["a"]) yaw += 0.012;
+    if (keys["d"]) yaw -= 0.012;
+
+    // Roll (Q/E)
+    if (keys["q"]) roll += 0.012;
+    if (keys["e"]) roll -= 0.012;
+
+    // Speed (W/S)
+    if (keys["w"]) speed = Math.min(speed + 0.01, 2.5);
+    if (keys["s"]) speed = Math.max(speed - 0.01, 0.05);
+
+    // Aplicar rotação suave
+    plane.rotation.x = pitch;
+    plane.rotation.y = yaw;
+    plane.rotation.z = roll;
+
+    // Mover “para frente” no eixo Z negativo do avião
+    const forward = new THREE.Vector3(1, 0, 0).applyQuaternion(plane.quaternion);
+    plane.position.addScaledVector(forward, speed);
+
+    // Câmera follow
+    const camOffset = new THREE.Vector3(-18, 8, 0).applyQuaternion(plane.quaternion);
+    camera.position.copy(plane.position).add(camOffset);
+    camera.lookAt(plane.position);
+
+    // Limites simples (não cair infinito)
+    plane.position.y = Math.max(plane.position.y, 5);
+    plane.position.y = Math.min(plane.position.y, 250);
+  }
+
+  function animate() {
+    if (!running) return;
+
+    update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+
+  function stopFlight() {
+    running = false;
+
+    // Esconde overlay
+    document.getElementById("flightView").classList.add("hidden");
+    document.getElementById("flightHelp").classList.add("hidden");
+
+    // Limpa handlers
+    window.onkeydown = null;
+    window.onkeyup = null;
+
+    // Limpa cena/renderer
+    try {
+      if (renderer) renderer.dispose();
+    } catch (_) {}
+
+    renderer = null;
+    scene = null;
+    camera = null;
+    plane = null;
+  }
+
+  return {
+    startFlight,
+    stopFlight
+  };
 })();
