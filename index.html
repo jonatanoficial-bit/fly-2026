@@ -47,7 +47,8 @@
           <button id="btnFleet" class="btn">Frota</button>
         </div>
         <div class="hud-hint">
-          Dica: toque numa rota/voo no mapa → detalhes. Você pode iniciar o modo 3D em voos ativos.
+          DLC em tempo real está ativo: quando o Admin editar (catálogo/aeroportos/missões/candidatos),
+          o jogo atualiza automaticamente.
         </div>
       </div>
     </div>
@@ -100,8 +101,16 @@
 
   <div id="backdrop" class="backdrop hidden"></div>
 
-  <!-- Scripts do jogo (ordem) -->
+  <!-- Firebase config global (necessário para DLC realtime) -->
+  <script src="js/firebase-config.js"></script>
+
+  <!-- Base do jogo -->
   <script src="js/data.js"></script>
+
+  <!-- DLC realtime: ouve Firestore public/dlc e atualiza sem reload -->
+  <script src="js/dlc.js"></script>
+
+  <!-- UI / Mapa / 3D -->
   <script src="js/ui.js"></script>
   <script src="js/map.js"></script>
   <script src="js/game.js"></script>
