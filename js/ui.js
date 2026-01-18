@@ -1,5 +1,5 @@
 // js/ui.js (SUBSTITUA INTEIRO)
-const UIModule = (function () {
+window.UIModule = (function () {
   let sidePanel, backdrop, menuBtn, closePanel, tabContent;
   let activeTab = "overview";
   let clockInterval = null;
@@ -27,15 +27,15 @@ const UIModule = (function () {
   }
 
   function getAirport(code) {
-    return (window.flightData.airports || []).find(a => a.code === code);
+    return (window.flightData?.airports || []).find(a => a.code === code);
   }
 
   function getModel(modelId) {
-    return (window.flightData.aircraftCatalog || []).find(m => m.modelId === modelId);
+    return (window.flightData?.aircraftCatalog || []).find(m => m.modelId === modelId);
   }
 
   function getAircraft(aircraftId) {
-    return (window.flightData.fleet || []).find(a => a.aircraftId === aircraftId);
+    return (window.flightData?.fleet || []).find(a => a.aircraftId === aircraftId);
   }
 
   function ensureLedger() {
@@ -47,16 +47,15 @@ const UIModule = (function () {
     ensureLedger();
     const d = window.flightData;
     d.ledger.unshift({
-      id: FlySimStore.uid("LED"),
+      id: window.FlySimStore.uid("LED"),
       at: Date.now(),
       ...entry
     });
-    // limita para não crescer infinito
     d.ledger = d.ledger.slice(0, 50);
   }
 
   function refreshAll({ refreshMap = true } = {}) {
-    FlySimStore.save(window.flightData);
+    window.FlySimStore.save(window.flightData);
     renderTab(activeTab);
     if (refreshMap && window.MapModule?.refresh) window.MapModule.refresh();
   }
@@ -65,9 +64,6 @@ const UIModule = (function () {
   // Economia / Lucro
   // =========================
   function estimateFlightProfit(flight) {
-    // Modelo simples, mas já útil:
-    // Receita = assentos * ocupação * ticket
-    // Custos = combustível (distância * burn) * preçoComb + taxa aeroportos + desgaste
     const d = window.flightData;
     const ac = getAircraft(flight.aircraftId);
     const model = ac ? getModel(ac.modelId) : null;
@@ -75,37 +71,26 @@ const UIModule = (function () {
     const seats = model?.seats ?? 150;
     const distanceKm = Number(flight.distanceKm || 800);
 
-    // taxa ocupação baseada em reputação (30%..92%)
     const rep = Number(d.company.reputation || 50);
     const occupancy = Math.max(0.30, Math.min(0.92, 0.35 + rep / 120));
 
     const ticket = Number(flight.ticketPrice || 400);
     const revenue = seats * occupancy * ticket;
 
-    // combustível
-    const burnPerKm = Number(model?.fuelBurnPerKm ?? 2.2); // "litros" abstratos por km
+    const burnPerKm = Number(model?.fuelBurnPerKm ?? 2.2);
     const fuelUnits = distanceKm * burnPerKm;
 
-    // preço por unidade de combustível (abstrato)
     const fuelUnitPrice = 6.2;
     const fuelCost = fuelUnits * fuelUnitPrice;
 
-    // taxas
-    const airportFees = 22000; // fixa por voo (placeholder)
-    const staffCost = 12000;   // custo fixo simplificado por voo
-    const maintenanceReserve = 8000; // provisão
+    const airportFees = 22000;
+    const staffCost = 12000;
+    const maintenanceReserve = 8000;
 
     const costs = fuelCost + airportFees + staffCost + maintenanceReserve;
     const profit = revenue - costs;
 
-    return {
-      revenue,
-      costs,
-      profit,
-      occupancy,
-      seats,
-      distanceKm
-    };
+    return { revenue, costs, profit, occupancy, seats, distanceKm };
   }
 
   // =========================
@@ -120,7 +105,7 @@ const UIModule = (function () {
 
       d.company.cash -= m.price;
 
-      const aircraftId = FlySimStore.uid("AC");
+      const aircraftId = window.FlySimStore.uid("AC");
       const tailNumber = `PP-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 
       d.fleet.push({
@@ -159,7 +144,7 @@ const UIModule = (function () {
       d.company.cash -= hiringFee;
 
       d.staff.push({
-        id: FlySimStore.uid("ST"),
+        id: window.FlySimStore.uid("ST"),
         name: c.name,
         role: c.role,
         salary: c.salary,
@@ -195,7 +180,7 @@ const UIModule = (function () {
       if (ticketPrice <= 0) return alert("Defina um preço de passagem válido.");
 
       d.routes.push({
-        routeId: FlySimStore.uid("RT"),
+        routeId: window.FlySimStore.uid("RT"),
         origin,
         destination,
         ticketPrice,
@@ -204,7 +189,7 @@ const UIModule = (function () {
         active: true
       });
 
-      FlySimStore.generateFlightsForRoutes(d);
+      window.FlySimStore.generateFlightsForRoutes(d);
 
       addLedgerEntry({
         type: "NOVA_ROTA",
@@ -225,7 +210,7 @@ const UIModule = (function () {
       if (!r) return;
 
       r.active = !r.active;
-      FlySimStore.generateFlightsForRoutes(d);
+      window.FlySimStore.generateFlightsForRoutes(d);
 
       addLedgerEntry({
         type: "ROTA_STATUS",
@@ -239,7 +224,7 @@ const UIModule = (function () {
 
   function regenerateFlights() {
     return _safe(() => {
-      FlySimStore.generateFlightsForRoutes(window.flightData);
+      window.FlySimStore.generateFlightsForRoutes(window.flightData);
       addLedgerEntry({ type: "REGERAR_VOOS", title: "Voos regenerados", amount: 0 });
       refreshAll();
       alert("Voos regenerados!");
@@ -255,14 +240,12 @@ const UIModule = (function () {
       const model = getModel(ac.modelId);
       const condition = Number(ac.condition ?? 100);
 
-      // custo: base + "quanto pior estava"
       const base = 50000;
       const penalty = Math.round((100 - condition) * 2200);
       const cost = Math.max(20000, base + penalty);
 
       if (d.company.cash < cost) return alert(`Caixa insuficiente para manutenção. Necessário: ${fmtMoney(cost)}`);
 
-      // manutenção instantânea (upgrade futuro: timer/agenda)
       d.company.cash -= cost;
       ac.status = "IDLE";
       ac.condition = 100;
@@ -284,10 +267,10 @@ const UIModule = (function () {
       const d = window.flightData;
       const f = (d.flights || []).find(x => x.id === flightId);
       if (!f) return alert("Voo não encontrado.");
-
       if (f.status === "FINALIZADO") return alert("Este voo já foi concluído.");
 
       const calc = estimateFlightProfit(f);
+
       f.status = "FINALIZADO";
       f.completedAt = Date.now();
       f.revenue = calc.revenue;
@@ -295,13 +278,11 @@ const UIModule = (function () {
       f.profit = calc.profit;
       f.occupancy = calc.occupancy;
 
-      // aplica no caixa
       d.company.cash += calc.profit;
 
-      // desgaste simplificado do avião
       const ac = getAircraft(f.aircraftId);
       if (ac) {
-        const wear = Math.max(1, Math.round((calc.distanceKm / 1000) * 2)); // ~2% por 1000km
+        const wear = Math.max(1, Math.round((calc.distanceKm / 1000) * 2));
         ac.condition = Math.max(40, Number(ac.condition ?? 100) - wear);
       }
 
@@ -519,7 +500,7 @@ const UIModule = (function () {
       <div class="card">
         <div class="cardTitle">Voos</div>
         <div class="muted">
-          Agora os voos podem ser concluídos para gerar lucro e registrar no ledger.
+          Conclua voos para gerar lucro e registrar no ledger.
         </div>
         <div style="margin-top:10px;">
           <button class="btn" onclick="UIModule.regenerateFlights()">Regenerar voos</button>
@@ -585,3 +566,113 @@ const UIModule = (function () {
           <div class="card" style="margin:10px 0;">
             <div class="cardTitle">${c.name} — ${c.role}</div>
             <div><b>Salário:</b> ${fmtMoney(c.salary)} | <b>Moral:</b> ${c.morale}%</div>
+            <div class="muted" style="margin-top:6px;">Taxa contratação: ${fmtMoney(c.salary * 2)}</div>
+            <div style="margin-top:10px;">
+              <button class="btn" onclick="UIModule.hireCandidate('${c.id}')">Contratar</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+
+    stopClock();
+  }
+
+  function renderMissions() {
+    const d = window.flightData;
+
+    tabContent.innerHTML = `
+      ${(d.missions || []).map(m => `
+        <div class="card">
+          <div class="cardTitle">${m.title} (${m.difficulty})</div>
+          <div class="muted">${m.description}</div>
+          <div style="margin-top:8px;"><b>Recompensa:</b> ${fmtMoney(m.reward)}</div>
+          <div style="margin-top:10px;">
+            <button class="btn" onclick="alert('Missão aceita: ${m.title}')">Aceitar</button>
+          </div>
+        </div>
+      `).join("")}
+    `;
+
+    stopClock();
+  }
+
+  function renderTab(tab) {
+    ensureLedger();
+
+    if (tab === "overview") return renderOverview();
+    if (tab === "fleet") return renderFleet();
+    if (tab === "routes") return renderRoutes();
+    if (tab === "flights") return renderFlights();
+    if (tab === "staff") return renderStaff();
+    if (tab === "missions") return renderMissions();
+
+    tabContent.innerHTML = `<div class="card"><div class="muted">Em construção.</div></div>`;
+    stopClock();
+  }
+
+  // =========================
+  // Init / Events
+  // =========================
+  function init() {
+    sidePanel = document.getElementById("sidePanel");
+    backdrop = document.getElementById("backdrop");
+    menuBtn = document.getElementById("menuBtn");
+    closePanel = document.getElementById("closePanel");
+    tabContent = document.getElementById("tabContent");
+
+    if (menuBtn) menuBtn.addEventListener("click", openPanel);
+    if (closePanel) closePanel.addEventListener("click", closePanelFn);
+    if (backdrop) backdrop.addEventListener("click", closePanelFn);
+
+    document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => selectTab(btn.dataset.tab));
+    });
+
+    // Realtime DLC: re-render do que estiver aberto
+    window.addEventListener("dlc-updated", () => {
+      renderTab(activeTab);
+    });
+
+    renderTab(activeTab);
+  }
+
+  function openPanel() {
+    if (!sidePanel || !backdrop) return;
+    sidePanel.classList.remove("hidden");
+    backdrop.classList.remove("hidden");
+    sidePanel.setAttribute("aria-hidden", "false");
+  }
+
+  function closePanelFn() {
+    if (!sidePanel || !backdrop) return;
+    sidePanel.classList.add("hidden");
+    backdrop.classList.add("hidden");
+    sidePanel.setAttribute("aria-hidden", "true");
+  }
+
+  function selectTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll(".tab[data-tab]").forEach((b) => b.classList.remove("active"));
+    const current = document.querySelector(`.tab[data-tab="${tab}"]`);
+    if (current) current.classList.add("active");
+    renderTab(tab);
+  }
+
+  // =========================
+  // Public API
+  // =========================
+  return {
+    init,
+    openPanel,
+    closePanel: closePanelFn,
+    selectTab,
+    buyAircraft,
+    hireCandidate,
+    createRoute,
+    toggleRoute,
+    regenerateFlights,
+    performMaintenance,
+    completeFlight
+  };
+})();
