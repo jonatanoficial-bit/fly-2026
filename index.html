@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Flight Simulator Web Game</title>
 
-  <!-- Leaflet (MAPA) -->
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -19,10 +19,9 @@
     defer
   ></script>
 
-  <!-- Three.js (3D) -->
+  <!-- Three.js -->
   <script src="https://unpkg.com/three@0.159.0/build/three.min.js" defer></script>
 
-  <!-- CSS do jogo -->
   <link rel="stylesheet" href="css/style.css" />
 </head>
 
@@ -36,20 +35,19 @@
     <button id="menuBtn" class="menuBtn" aria-label="Abrir menu">≡</button>
   </header>
 
-  <!-- ÁREA PRINCIPAL (MAPA) -->
   <main id="app">
     <div id="map"></div>
 
-    <!-- HUD (topo do mapa) -->
     <div class="hud">
       <div class="hud-card">
         <div class="hud-title">Ações rápidas</div>
         <div class="hud-row">
           <button id="btnCenter" class="btn">Centralizar</button>
-          <button id="btnToggleFlights" class="btn">Voos</button>
+          <button id="btnRoutes" class="btn">Rotas</button>
+          <button id="btnFleet" class="btn">Frota</button>
         </div>
         <div class="hud-hint">
-          Dica: toque no avião → detalhes. Toque em “Iniciar Voo” para abrir o modo 3D.
+          Dica: toque numa rota/voo no mapa → detalhes. Você pode iniciar o modo 3D em voos ativos.
         </div>
       </div>
     </div>
@@ -80,7 +78,7 @@
     </div>
   </div>
 
-  <!-- PAINEL LATERAL -->
+  <!-- PAINEL -->
   <aside id="sidePanel" class="sidePanel hidden" aria-hidden="true">
     <div class="sideHeader">
       <div class="sideTitle">Gestão</div>
@@ -89,6 +87,8 @@
 
     <nav class="tabs">
       <button class="tab active" data-tab="overview">Visão Geral</button>
+      <button class="tab" data-tab="fleet">Frota</button>
+      <button class="tab" data-tab="routes">Rotas</button>
       <button class="tab" data-tab="flights">Voos</button>
       <button class="tab" data-tab="staff">Equipe</button>
       <button class="tab" data-tab="missions">Missões</button>
@@ -98,39 +98,28 @@
     <div id="tabContent" class="tabContent"></div>
   </aside>
 
-  <!-- Overlay escuro ao abrir painel -->
   <div id="backdrop" class="backdrop hidden"></div>
 
-  <!-- Scripts do jogo (ordem IMPORTA) -->
+  <!-- Scripts do jogo (ordem) -->
   <script src="js/data.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/map.js"></script>
   <script src="js/game.js"></script>
 
-  <!-- Bootstrap -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      // UI
       UIModule.init();
 
-      // Mapa
       MapModule.init({
         mapId: "map",
-        center: [-23.55052, -46.633308], // SP
+        center: [-23.55052, -46.633308],
         zoom: 4
       });
 
-      // Botões HUD
-      document.getElementById("btnCenter").addEventListener("click", () => {
-        MapModule.centerOnCompany();
-      });
+      document.getElementById("btnCenter").addEventListener("click", () => MapModule.centerOnCompany());
+      document.getElementById("btnRoutes").addEventListener("click", () => { UIModule.openPanel(); UIModule.selectTab("routes"); });
+      document.getElementById("btnFleet").addEventListener("click", () => { UIModule.openPanel(); UIModule.selectTab("fleet"); });
 
-      document.getElementById("btnToggleFlights").addEventListener("click", () => {
-        UIModule.openPanel();
-        UIModule.selectTab("flights");
-      });
-
-      // Help overlay
       const help = document.getElementById("flightHelp");
       document.getElementById("btnHelp").addEventListener("click", () => help.classList.remove("hidden"));
       document.getElementById("btnCloseHelp").addEventListener("click", () => help.classList.add("hidden"));
