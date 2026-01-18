@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin - FlySim</title>
+  <title>Admin - Fly-2026</title>
   <link rel="stylesheet" href="css/admin.css" />
 </head>
 <body>
   <header class="admin-header">
-    <div class="admin-title">Administração (Editor)</div>
-    <a class="back-link" href="index.html">← Voltar</a>
+    <div class="admin-title">Administração (Firebase)</div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button id="logoutBtn" class="btn ghost hidden">Sair</button>
+      <a class="back-link" href="index.html">← Voltar</a>
+    </div>
   </header>
 
   <main class="admin-container">
@@ -17,13 +20,13 @@
     <!-- LOGIN -->
     <section id="loginSection" class="card">
       <h2>Entrar</h2>
-      <p class="muted">
-        Aviso: no GitHub Pages isso é apenas “modo editor” (não é segurança real).
-      </p>
+      <p class="muted">Acesso real via Firebase Auth.</p>
 
       <div class="grid">
+        <label>Email</label>
+        <input id="email" type="email" placeholder="seuemail@..." />
         <label>Senha</label>
-        <input id="adminPass" type="password" placeholder="Digite a senha" />
+        <input id="pass" type="password" placeholder="Sua senha" />
         <button id="loginBtn" class="btn">Entrar</button>
         <div id="loginMsg" class="muted"></div>
       </div>
@@ -32,6 +35,7 @@
     <!-- PAINEL -->
     <section id="panelSection" class="card hidden">
       <h2>Painel Admin</h2>
+      <p class="muted">Somente ADMIN pode editar. O jogo lê como DLC em tempo real.</p>
 
       <div class="tabs">
         <button class="tab active" data-tab="catalog">Catálogo</button>
@@ -45,6 +49,7 @@
 
   </main>
 
-  <script src="js/admin.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script type="module" src="js/admin-firebase.js"></script>
 </body>
 </html>
