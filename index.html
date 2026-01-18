@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Simulator Web Game</title>
+    <!-- Estilos -->
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Bibliotecas externas -->
+    <!-- Three.js para o modo de voo 3D -->
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
+    <!-- Leaflet para o mapa 2D -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+Sk1Ymgu0e7s7EAsDbf6bC4qltdaxRnUysfCv5fDRo5b1FQwWZyeYpdbFejW2mDXH2SJzN9RNYDj2N6n3yqg==" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-dO6U7B9HPNWisYK0/5CrFhDG1mra/cl7VFUKQ/w4VBsdE0nZfWTwPFke9pVG6El4Dj0kklNciV1nkz0hg9eUgg==" crossorigin=""></script>
+    <!-- Font Awesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-VnlT1k5qjeiZwzXfAhOozbR5aMTRXXmxVA9rjqEf4x3L8F5wfv4ByzO2qV+F9eHeT3iMRS78V3BA1h9Vbo/n1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+    <header class="header">
+        <img src="assets/images/logo.png" alt="Logo" class="logo">
+        <h1>Flight Simulator Web Game</h1>
+        <button id="menuBtn" class="menu-button"><i class="fa fa-bars"></i></button>
+    </header>
+
+    <main>
+        <!-- Área do mapa 2D -->
+        <div id="map" class="map-container"></div>
+        <!-- Canvas para o simulador 3D -->
+        <div id="threeContainer" class="three-container"></div>
+        <!-- Painel lateral de gestão -->
+        <aside id="sidePanel" class="side-panel hidden">
+            <nav>
+                <ul>
+                    <li><a href="#" id="overviewTab" class="active">Visão Geral</a></li>
+                    <li><a href="#" id="flightsTab">Voos</a></li>
+                    <li><a href="#" id="staffTab">Funcionários</a></li>
+                    <li><a href="#" id="missionsTab">Missões</a></li>
+                    <li><a href="admin.html">Admin</a></li>
+                </ul>
+            </nav>
+            <section id="tabContent" class="tab-content">
+                <!-- Conteúdo dinâmico carregado por ui.js -->
+            </section>
+        </aside>
+    </main>
+
+    <!-- Scripts da aplicação -->
+    <script src="js/data.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/ui.js"></script>
+</body>
+</html>
