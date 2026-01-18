@@ -6,11 +6,14 @@
   <title>Admin - Fly-2026</title>
   <link rel="stylesheet" href="css/admin.css" />
 </head>
+
 <body>
   <header class="admin-header">
     <div class="admin-title">Administração (Firebase)</div>
-    <div style="display:flex; gap:10px; align-items:center;">
-      <button id="logoutBtn" class="btn ghost hidden">Sair</button>
+
+    <div class="admin-actions">
+      <span id="userBadge" class="user-badge hidden"></span>
+      <button id="logoutBtn" class="btn ghost hidden" type="button">Sair</button>
       <a class="back-link" href="index.html">← Voltar</a>
     </div>
   </header>
@@ -20,36 +23,82 @@
     <!-- LOGIN -->
     <section id="loginSection" class="card">
       <h2>Entrar</h2>
-      <p class="muted">Acesso real via Firebase Auth.</p>
+      <p class="muted">
+        Login real via Firebase Auth (Email/Senha). Somente o UID admin pode editar o DLC.
+      </p>
 
       <div class="grid">
-        <label>Email</label>
-        <input id="email" type="email" placeholder="seuemail@..." />
-        <label>Senha</label>
-        <input id="pass" type="password" placeholder="Sua senha" />
-        <button id="loginBtn" class="btn">Entrar</button>
+        <label for="email">Email</label>
+        <input id="email" type="email" placeholder="seuemail@..." autocomplete="email" />
+
+        <label for="pass">Senha</label>
+        <input id="pass" type="password" placeholder="Sua senha" autocomplete="current-password" />
+
+        <button id="loginBtn" class="btn" type="button">Entrar</button>
         <div id="loginMsg" class="muted"></div>
+      </div>
+
+      <div class="card mini" style="margin-top:14px;">
+        <h3>Importante</h3>
+        <ul class="muted" style="margin:10px 0 0; line-height:1.5;">
+          <li>Este painel só funciona se você configurar corretamente o Firebase (Auth + Firestore + Rules).</li>
+          <li>No Firestore, o documento <b>public/dlc</b> pode ser criado automaticamente ao salvar pela primeira vez.</li>
+        </ul>
       </div>
     </section>
 
-    <!-- PAINEL -->
+    <!-- NÃO ADMIN -->
+    <section id="notAdminSection" class="card hidden">
+      <h2>Acesso negado</h2>
+      <p class="muted">
+        Você fez login, mas este usuário não é ADMIN.
+      </p>
+      <p class="muted">
+        UID permitido: <b>Nf4mGSSXoVhN8Y8lHsP31khYikL2</b>
+      </p>
+      <button id="notAdminLogoutBtn" class="btn danger" type="button">Sair</button>
+    </section>
+
+    <!-- PAINEL ADMIN -->
     <section id="panelSection" class="card hidden">
       <h2>Painel Admin</h2>
-      <p class="muted">Somente ADMIN pode editar. O jogo lê como DLC em tempo real.</p>
+      <p class="muted">
+        Aqui você edita o DLC em tempo real. O jogo lê esses dados do Firestore (leitura pública, escrita só admin).
+      </p>
 
       <div class="tabs">
-        <button class="tab active" data-tab="catalog">Catálogo</button>
-        <button class="tab" data-tab="airports">Aeroportos</button>
-        <button class="tab" data-tab="candidates">Candidatos</button>
-        <button class="tab" data-tab="missions">Missões</button>
+        <button class="tab active" data-tab="catalog" type="button">Catálogo</button>
+        <button class="tab" data-tab="airports" type="button">Aeroportos</button>
+        <button class="tab" data-tab="candidates" type="button">Candidatos</button>
+        <button class="tab" data-tab="missions" type="button">Missões</button>
       </div>
 
       <div id="tabArea"></div>
+
+      <div class="card mini" style="margin-top:14px;">
+        <h3>Boas práticas</h3>
+        <ul class="muted" style="margin:10px 0 0; line-height:1.5;">
+          <li>Use IDs únicos no catálogo (ex: CAT-A320, CAT-B737).</li>
+          <li>Use códigos IATA nos aeroportos (3 letras).</li>
+          <li>Evite remover modelos que já estão em frota/rotas no save local dos jogadores.</li>
+        </ul>
+      </div>
     </section>
 
   </main>
 
+  <!-- Config Firebase (NÃO module) -->
   <script src="js/firebase-config.js"></script>
+
+  <!-- Admin (module) -->
   <script type="module" src="js/admin-firebase.js"></script>
+
+  <!-- Estilos mínimos para badge/ações caso seu admin.css não tenha -->
+  <style>
+    .admin-actions{display:flex;gap:10px;align-items:center;}
+    .user-badge{padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);font-weight:900;}
+    .hidden{display:none;}
+    .btn.danger{background: rgba(255,59,59,.18); border-color: rgba(255,59,59,.35);}
+  </style>
 </body>
 </html>
