@@ -1,41 +1,93 @@
 const MapModule = (function () {
   let map;
-  let markers = {};
-  let routes = {};
   let config = {
     mapId: "map",
     center: [-23.55052, -46.633308],
     zoom: 4
   };
 
+  let flightMarkers = {};
+  let routeLines = {};
+  let routeMarkers = {};
+
   function init(userConfig) {
     config = { ...config, ...(userConfig || {}) };
-
-    // Segurança: espera Leaflet existir
     if (!window.L) {
-      console.error("Leaflet não carregou (L undefined). Verifique conexão/CDN.");
+      console.error("Leaflet não carregou.");
       return;
     }
 
-    map = L.map(config.mapId, {
-      zoomControl: true,
-      preferCanvas: true
-    }).setView(config.center, config.zoom);
+    map = L.map(config.mapId, { zoomControl: true, preferCanvas: true })
+      .setView(config.center, config.zoom);
 
-    // Tiles (OpenStreetMap)
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
+    refresh();
+  }
+
+  function refresh() {
+    clearAll();
+    renderRoutes();
     renderFlights();
   }
 
-  function getFlightById(id) {
-    return window.flightData.flights.find(f => f.id === id);
+  function clearAll() {
+    Object.values(flightMarkers).forEach(m => map.removeLayer(m));
+    Object.values(routeLines).forEach(l => map.removeLayer(l));
+    Object.values(routeMarkers).forEach(m => map.removeLayer(m));
+    flightMarkers = {};
+    routeLines = {};
+    routeMarkers = {};
+  }
+
+  function renderRoutes() {
+    const d = window.flightData;
+
+    d.routes.forEach(r => {
+      const o = d.airports.find(a => a.code === r.origin);
+      const de = d.airports.find(a => a.code === r.destination);
+      if (!o || !de) return;
+
+      const line = L.polyline(
+        [[o.lat, o.lon], [de.lat, de.lon]],
+        { weight: r.active ? 4 : 2, opacity: r.active ? 0.8 : 0.35 }
+      ).addTo(map);
+      routeLines[r.routeId] = line;
+
+      // marcador no meio da rota
+      const mid = { lat: (o.lat + de.lat) / 2, lon: (o.lon + de.lon) / 2 };
+      const marker = L.circleMarker([mid.lat, mid.lon], {
+        radius: 7,
+        opacity: 0.9,
+        fillOpacity: 0.7
+      }).addTo(map);
+
+      routeMarkers[r.routeId] = marker;
+
+      const popup = `
+        <div style="min-width:220px">
+          <div style="font-weight:900; margin-bottom:6px">Rota ${r.origin} → ${r.destination} ${r.active ? "" : "(INATIVA)"}</div>
+          <div><b>Preço:</b> R$ ${Number(r.ticketPrice).toFixed(0)}</div>
+          <div><b>Freq/dia:</b> ${r.frequencyPerDay}</div>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button style="padding:8px 10px; border-radius:10px; border:1px solid #ccc; cursor:pointer;"
+              onclick="UIModule.openPanel(); UIModule.selectTab('routes')">Abrir gestão</button>
+          </div>
+        </div>
+      `;
+
+      marker.bindPopup(popup);
+      marker.on("click", () => marker.openPopup());
+      line.on("click", () => marker.openPopup());
+    });
   }
 
   function renderFlights() {
+    const d = window.flightData;
+
     const icon = L.icon({
       iconUrl: "assets/images/plane.png",
       iconSize: [38, 38],
@@ -43,61 +95,58 @@ const MapModule = (function () {
       popupAnchor: [0, -18]
     });
 
-    window.flightData.flights.forEach((flight) => {
-      // Marcador
-      const marker = L.marker([flight.position.lat, flight.position.lon], { icon }).addTo(map);
-      markers[flight.id] = marker;
+    d.flights.forEach(f => {
+      const marker = L.marker([f.position.lat, f.position.lon], { icon }).addTo(map);
+      flightMarkers[f.id] = marker;
 
-      // Linha de rota
-      const line = L.polyline(
-        [
-          [flight.origin.lat, flight.origin.lon],
-          [flight.destination.lat, flight.destination.lon]
-        ],
-        {
-          weight: 3,
-          opacity: 0.7
-        }
-      ).addTo(map);
-      routes[flight.id] = line;
-
-      // Popup com botão funcional
-      const popupHtml = `
+      const popup = `
         <div style="min-width:220px">
-          <div style="font-weight:900; margin-bottom:6px">${flight.flightNumber}</div>
-          <div><b>${flight.origin.code}</b> → <b>${flight.destination.code}</b></div>
-          <div style="margin-top:6px;"><b>Status:</b> ${flight.status}</div>
+          <div style="font-weight:900; margin-bottom:6px">${f.flightNumber}</div>
+          <div><b>${f.origin.code}</b> → <b>${f.destination.code}</b></div>
+          <div style="margin-top:6px;"><b>Status:</b> ${f.status}</div>
           <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
             <button style="padding:8px 10px; border-radius:10px; border:1px solid #ccc; cursor:pointer;"
-              onclick="GameModule.startFlight('${flight.id}')">Iniciar Voo</button>
+              onclick="GameModule.startFlight('${f.id}')">Iniciar Voo (3D)</button>
             <button style="padding:8px 10px; border-radius:10px; border:1px solid #ccc; cursor:pointer;"
               onclick="UIModule.openPanel(); UIModule.selectTab('flights')">Detalhes</button>
           </div>
         </div>
       `;
-      marker.bindPopup(popupHtml);
 
-      // Clique → abre popup
+      marker.bindPopup(popup);
       marker.on("click", () => marker.openPopup());
     });
   }
 
   function focusFlight(id) {
-    const f = getFlightById(id);
+    const f = window.flightData.flights.find(x => x.id === id);
     if (!f) return;
-
     map.setView([f.position.lat, f.position.lon], 6, { animate: true });
-    if (markers[id]) markers[id].openPopup();
+    flightMarkers[id]?.openPopup();
+  }
+
+  function focusRoute(routeId) {
+    const r = window.flightData.routes.find(x => x.routeId === routeId);
+    if (!r) return;
+
+    const o = window.flightData.airports.find(a => a.code === r.origin);
+    const de = window.flightData.airports.find(a => a.code === r.destination);
+    if (!o || !de) return;
+
+    const bounds = L.latLngBounds([[o.lat, o.lon], [de.lat, de.lon]]);
+    map.fitBounds(bounds.pad(0.25));
+    routeMarkers[routeId]?.openPopup();
   }
 
   function centerOnCompany() {
     map.setView(config.center, config.zoom, { animate: true });
   }
 
-  // API pública
   return {
     init,
+    refresh,
     focusFlight,
+    focusRoute,
     centerOnCompany
   };
 })();
