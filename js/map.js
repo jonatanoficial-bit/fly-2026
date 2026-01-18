@@ -1,5 +1,5 @@
-// js/map.js
-const MapModule = (function () {
+// js/map.js (SUBSTITUA INTEIRO)
+window.MapModule = (function () {
   let map;
   let config = {
     mapId: "map",
@@ -39,12 +39,9 @@ const MapModule = (function () {
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
-    // Atualiza quando DLC mudar
     window.addEventListener("dlc-updated", () => refresh());
-
     refresh();
 
-    // Remove loading overlay se existir
     const loading = document.getElementById("mapLoading");
     if (loading) loading.style.display = "none";
 
@@ -144,7 +141,7 @@ const MapModule = (function () {
 
   function focusFlight(id) {
     const f = (window.flightData?.flights || []).find(x => x.id === id);
-    if (!f) return;
+    if (!f || !map) return;
     map.setView([f.position.lat, f.position.lon], 6, { animate: true });
     flightMarkers[id]?.openPopup();
   }
@@ -152,7 +149,7 @@ const MapModule = (function () {
   function focusRoute(routeId) {
     const d = window.flightData || {};
     const r = (d.routes || []).find(x => x.routeId === routeId);
-    if (!r) return;
+    if (!r || !map) return;
 
     const o = (d.airports || []).find(a => a.code === r.origin);
     const de = (d.airports || []).find(a => a.code === r.destination);
