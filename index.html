@@ -1,54 +1,140 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flight Simulator Web Game</title>
-    <!-- Estilos -->
-    <link rel="stylesheet" href="css/style.css">
-    <!-- Bibliotecas externas -->
-    <!-- Three.js para o modo de voo 3D -->
-    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
-    <!-- Leaflet para o mapa 2D -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+Sk1Ymgu0e7s7EAsDbf6bC4qltdaxRnUysfCv5fDRo5b1FQwWZyeYpdbFejW2mDXH2SJzN9RNYDj2N6n3yqg==" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-dO6U7B9HPNWisYK0/5CrFhDG1mra/cl7VFUKQ/w4VBsdE0nZfWTwPFke9pVG6El4Dj0kklNciV1nkz0hg9eUgg==" crossorigin=""></script>
-    <!-- Font Awesome para ícones -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-VnlT1k5qjeiZwzXfAhOozbR5aMTRXXmxVA9rjqEf4x3L8F5wfv4ByzO2qV+F9eHeT3iMRS78V3BA1h9Vbo/n1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flight Simulator Web Game</title>
+
+  <!-- Leaflet (MAPA) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+    defer
+  ></script>
+
+  <!-- Three.js (3D) -->
+  <script src="https://unpkg.com/three@0.159.0/build/three.min.js" defer></script>
+
+  <!-- CSS do jogo -->
+  <link rel="stylesheet" href="css/style.css" />
 </head>
+
 <body>
-    <header class="header">
-        <img src="assets/images/logo.png" alt="Logo" class="logo">
-        <h1>Flight Simulator Web Game</h1>
-        <button id="menuBtn" class="menu-button"><i class="fa fa-bars"></i></button>
-    </header>
+  <header class="header">
+    <div class="brand">
+      <img class="logo" src="assets/images/logo.png" alt="Logo" />
+      <div class="title">Flight Simulator Web Game</div>
+    </div>
 
-    <main>
-        <!-- Área do mapa 2D -->
-        <div id="map" class="map-container"></div>
-        <!-- Canvas para o simulador 3D -->
-        <div id="threeContainer" class="three-container"></div>
-        <!-- Painel lateral de gestão -->
-        <aside id="sidePanel" class="side-panel hidden">
-            <nav>
-                <ul>
-                    <li><a href="#" id="overviewTab" class="active">Visão Geral</a></li>
-                    <li><a href="#" id="flightsTab">Voos</a></li>
-                    <li><a href="#" id="staffTab">Funcionários</a></li>
-                    <li><a href="#" id="missionsTab">Missões</a></li>
-                    <li><a href="admin.html">Admin</a></li>
-                </ul>
-            </nav>
-            <section id="tabContent" class="tab-content">
-                <!-- Conteúdo dinâmico carregado por ui.js -->
-            </section>
-        </aside>
-    </main>
+    <button id="menuBtn" class="menuBtn" aria-label="Abrir menu">≡</button>
+  </header>
 
-    <!-- Scripts da aplicação -->
-    <script src="js/data.js"></script>
-    <script src="js/map.js"></script>
-    <script src="js/game.js"></script>
-    <script src="js/ui.js"></script>
+  <!-- ÁREA PRINCIPAL (MAPA) -->
+  <main id="app">
+    <div id="map"></div>
+
+    <!-- HUD (topo do mapa) -->
+    <div class="hud">
+      <div class="hud-card">
+        <div class="hud-title">Ações rápidas</div>
+        <div class="hud-row">
+          <button id="btnCenter" class="btn">Centralizar</button>
+          <button id="btnToggleFlights" class="btn">Voos</button>
+        </div>
+        <div class="hud-hint">
+          Dica: toque no avião → detalhes. Toque em “Iniciar Voo” para abrir o modo 3D.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- OVERLAY 3D -->
+  <div id="flightView" class="flightView hidden">
+    <div class="flightTopBar">
+      <div class="flightTitle" id="flightTitle">Modo Voo</div>
+      <div class="flightTopActions">
+        <button id="btnHelp" class="btn ghost">Controles</button>
+        <button id="btnExitFlight" class="btn danger">Sair</button>
+      </div>
+    </div>
+    <canvas id="flightCanvas"></canvas>
+
+    <div id="flightHelp" class="flightHelp hidden">
+      <div class="helpCard">
+        <div class="helpTitle">Controles</div>
+        <ul>
+          <li><b>W/S</b> = acelerar / reduzir</li>
+          <li><b>A/D</b> = girar (yaw)</li>
+          <li><b>Setas ↑/↓</b> = inclinar (pitch)</li>
+          <li><b>Q/E</b> = rolar (roll)</li>
+        </ul>
+        <button id="btnCloseHelp" class="btn">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAINEL LATERAL -->
+  <aside id="sidePanel" class="sidePanel hidden" aria-hidden="true">
+    <div class="sideHeader">
+      <div class="sideTitle">Gestão</div>
+      <button id="closePanel" class="iconBtn" aria-label="Fechar">✕</button>
+    </div>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="overview">Visão Geral</button>
+      <button class="tab" data-tab="flights">Voos</button>
+      <button class="tab" data-tab="staff">Equipe</button>
+      <button class="tab" data-tab="missions">Missões</button>
+      <a class="tab link" href="admin.html">Admin</a>
+    </nav>
+
+    <div id="tabContent" class="tabContent"></div>
+  </aside>
+
+  <!-- Overlay escuro ao abrir painel -->
+  <div id="backdrop" class="backdrop hidden"></div>
+
+  <!-- Scripts do jogo (ordem IMPORTA) -->
+  <script src="js/data.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/game.js"></script>
+
+  <!-- Bootstrap -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // UI
+      UIModule.init();
+
+      // Mapa
+      MapModule.init({
+        mapId: "map",
+        center: [-23.55052, -46.633308], // SP
+        zoom: 4
+      });
+
+      // Botões HUD
+      document.getElementById("btnCenter").addEventListener("click", () => {
+        MapModule.centerOnCompany();
+      });
+
+      document.getElementById("btnToggleFlights").addEventListener("click", () => {
+        UIModule.openPanel();
+        UIModule.selectTab("flights");
+      });
+
+      // Help overlay
+      const help = document.getElementById("flightHelp");
+      document.getElementById("btnHelp").addEventListener("click", () => help.classList.remove("hidden"));
+      document.getElementById("btnCloseHelp").addEventListener("click", () => help.classList.add("hidden"));
+    });
+  </script>
 </body>
 </html>
