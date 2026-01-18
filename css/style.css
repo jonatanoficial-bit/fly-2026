@@ -1,157 +1,301 @@
-/* Estilos gerais */
-body {
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
-    background-color: #101820; /* fundo escuro para atmosfera de simulador */
-    color: #F5F5F5;
-    overflow: hidden; /* prevenir scroll */
+:root{
+  --header-h: 64px;
+  --bg: #0b1220;
+  --panel: #0f1b33;
+  --panel2: #0c162b;
+  --text: #f5f7ff;
+  --muted: rgba(245,247,255,.75);
+  --accent: #2ea7ff;
+  --danger: #ff3b3b;
 }
 
-header.header {
-    display: flex;
-    align-items: center;
-    background-color: #052d56;
-    color: white;
-    padding: 0.5rem 1rem;
-    position: fixed;
-    width: 100%;
-    top: 0;
-    z-index: 1000;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+*{ box-sizing: border-box; }
+
+html, body{
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-.logo {
-    height: 40px;
-    margin-right: 1rem;
+/* HEADER */
+.header{
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  background: linear-gradient(180deg, rgba(5,45,86,1) 0%, rgba(5,35,70,1) 100%);
+  z-index: 1000;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
 }
 
-.menu-button {
-    margin-left: auto;
-    background: none;
-    border: none;
-    color: white;
-    font-size: 1.5rem;
-    cursor: pointer;
+.brand{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.logo{
+  width: 54px;
+  height: 30px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(255,255,255,.08);
+}
+.title{
+  font-size: 20px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-main {
-    display: flex;
-    height: 100vh;
-    padding-top: 60px; /* espaço para o header */
+.menuBtn{
+  width: 44px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.15);
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
 }
 
-/* Mapa 2D ocupa metade da tela quando o painel está oculto */
-#map {
-    flex: 1;
-    height: calc(100vh - 60px);
+/* APP / MAPA */
+#app{
+  position: fixed;
+  top: var(--header-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
-/* Container do three.js oculto por padrão */
-.three-container {
-    display: none;
-    position: absolute;
-    top: 60px;
-    left: 0;
-    width: 100%;
-    height: calc(100vh - 60px);
-    background-color: #000;
-    z-index: 900;
+/* IMPORTANTÍSSIMO: Leaflet precisa de altura real */
+#map{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #08101d;
 }
 
-/* Painel lateral */
-.side-panel {
-    position: fixed;
-    right: 0;
-    top: 60px;
-    width: 300px;
-    height: calc(100vh - 60px);
-    background-color: #0d3b66;
-    box-shadow: -2px 0 4px rgba(0,0,0,0.4);
-    overflow-y: auto;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-    z-index: 1001;
+/* HUD */
+.hud{
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 600;
+}
+.hud-card{
+  width: min(360px, calc(100vw - 28px));
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(15,27,51,.72);
+  border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 35px rgba(0,0,0,.35);
+}
+.hud-title{
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.hud-row{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.hud-hint{
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
 }
 
-.side-panel.visible {
-    transform: translateX(0);
+/* BOTÕES */
+.btn{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(46,167,255,.18);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+.btn:hover{ filter: brightness(1.05); }
+.btn.ghost{
+  background: rgba(255,255,255,.08);
+}
+.btn.danger{
+  background: rgba(255,59,59,.18);
+  border-color: rgba(255,59,59,.35);
 }
 
-.side-panel nav ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+/* PAINEL */
+.sidePanel{
+  position: fixed;
+  top: var(--header-h);
+  right: 0;
+  bottom: 0;
+  width: min(420px, 92vw);
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+  border-left: 1px solid rgba(255,255,255,.12);
+  z-index: 1200;
+  transform: translateX(0);
+  display: flex;
+  flex-direction: column;
 }
 
-.side-panel nav li {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.sidePanel.hidden{
+  transform: translateX(110%);
 }
 
-.side-panel nav a {
-    display: block;
-    padding: 0.75rem 1rem;
-    color: #fff;
-    text-decoration: none;
-    font-weight: bold;
+.sideHeader{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+}
+.sideTitle{
+  font-weight: 900;
+  font-size: 16px;
+}
+.iconBtn{
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.07);
+  color: #fff;
+  cursor: pointer;
 }
 
-.side-panel nav a.active {
-    background-color: #004080;
+.tabs{
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  overflow-x: auto;
+}
+.tab{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.tab.active{
+  border-color: rgba(46,167,255,.55);
+  background: rgba(46,167,255,.16);
+}
+.tab.link{
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 
-.side-panel nav a:hover {
-    background-color: #005c99;
+.tabContent{
+  padding: 14px;
+  overflow: auto;
+  flex: 1;
 }
 
-.tab-content {
-    padding: 1rem;
-    font-size: 0.9rem;
+.card{
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  margin-bottom: 10px;
+}
+.cardTitle{
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+.muted{ color: var(--muted); }
+
+.row{
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-/* Tabelas e listas dentro do painel */
-.tab-content table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
+.backdrop{
+  position: fixed;
+  top: var(--header-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 1100;
+}
+.backdrop.hidden{ display: none; }
+
+/* OVERLAY 3D */
+.flightView{
+  position: fixed;
+  inset: 0;
+  background: #050a12;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+}
+.flightView.hidden{ display: none; }
+
+.flightTopBar{
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  background: rgba(5,45,86,1);
+  border-bottom: 1px solid rgba(255,255,255,.12);
+}
+.flightTitle{
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.flightTopActions{
+  display: flex;
+  gap: 8px;
 }
 
-.tab-content th, .tab-content td {
-    padding: 0.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    text-align: left;
+#flightCanvas{
+  width: 100%;
+  height: calc(100vh - var(--header-h));
+  display: block;
 }
 
-.tab-content th {
-    background-color: #004080;
+/* HELP */
+.flightHelp{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
 }
+.flightHelp.hidden{ display: none; }
 
-/* Botão de ação */
-.btn {
-    display: inline-block;
-    padding: 0.5rem 1rem;
-    background-color: #0077cc;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    margin: 0.25rem 0;
-    text-align: center;
+.helpCard{
+  width: min(520px, 100%);
+  background: rgba(15,27,51,.92);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 16px;
+  padding: 14px;
 }
-
-.btn:hover {
-    background-color: #005a99;
-}
-
-/* Estilos específicos do mapa */
-.leaflet-container {
-    font: inherit;
-}
-
-
-/* Ajustes responsivos */
-@media (max-width: 768px) {
-    .side-panel {
-        width: 80%;
-    }
+.helpTitle{
+  font-weight: 900;
+  margin-bottom: 10px;
 }
