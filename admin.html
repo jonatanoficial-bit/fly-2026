@@ -2,103 +2,308 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin - Fly-2026</title>
   <link rel="stylesheet" href="css/admin.css" />
+  <style>
+    .hidden{display:none;}
+    .admin-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;}
+    .admin-title{font-weight:900;font-size:18px;}
+    .admin-actions{display:flex;gap:10px;align-items:center;}
+    .user-badge{padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);font-weight:900;}
+    .btn{padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;cursor:pointer;}
+    .btn:hover{filter:brightness(1.1);}
+    .btn.ghost{background:transparent;}
+    .btn.danger{background:rgba(255,59,59,.18);border-color:rgba(255,59,59,.35);}
+    .card{margin:14px 16px;padding:14px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);backdrop-filter: blur(8px);}
+    .muted{opacity:.75;}
+    .grid{display:grid;gap:10px;max-width:520px;}
+    input, textarea, select{padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.22);color:#fff;}
+    textarea{min-height:140px;}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+    .hr{height:1px;background:rgba(255,255,255,.12);margin:14px 0;}
+    .ok{color:#9effa7;}
+    .bad{color:#ffb2b2;}
+    .small{font-size:12px;}
+  </style>
 </head>
 
 <body>
   <header class="admin-header">
     <div class="admin-title">Administração (Firebase)</div>
-
     <div class="admin-actions">
       <span id="userBadge" class="user-badge hidden"></span>
       <button id="logoutBtn" class="btn ghost hidden" type="button">Sair</button>
-      <a class="back-link" href="index.html">← Voltar</a>
+      <a class="btn ghost" href="index.html">← Voltar</a>
     </div>
   </header>
 
-  <main class="admin-container">
+  <main>
 
     <!-- LOGIN -->
     <section id="loginSection" class="card">
       <h2>Entrar</h2>
-      <p class="muted">
-        Login real via Firebase Auth (Email/Senha). Somente o UID admin pode editar o DLC.
-      </p>
-
+      <p class="muted">Somente o UID admin pode editar o DLC.</p>
       <div class="grid">
-        <label for="email">Email</label>
+        <label>Email</label>
         <input id="email" type="email" placeholder="seuemail@..." autocomplete="email" />
-
-        <label for="pass">Senha</label>
+        <label>Senha</label>
         <input id="pass" type="password" placeholder="Sua senha" autocomplete="current-password" />
-
         <button id="loginBtn" class="btn" type="button">Entrar</button>
         <div id="loginMsg" class="muted"></div>
-      </div>
-
-      <div class="card mini" style="margin-top:14px;">
-        <h3>Importante</h3>
-        <ul class="muted" style="margin:10px 0 0; line-height:1.5;">
-          <li>Este painel só funciona se você configurar corretamente o Firebase (Auth + Firestore + Rules).</li>
-          <li>No Firestore, o documento <b>public/dlc</b> pode ser criado automaticamente ao salvar pela primeira vez.</li>
-        </ul>
       </div>
     </section>
 
     <!-- NÃO ADMIN -->
     <section id="notAdminSection" class="card hidden">
       <h2>Acesso negado</h2>
-      <p class="muted">
-        Você fez login, mas este usuário não é ADMIN.
-      </p>
-      <p class="muted">
-        UID permitido: <b>Nf4mGSSXoVhN8Y8lHsP31khYikL2</b>
-      </p>
+      <p class="muted">Você fez login, mas não é admin.</p>
+      <p class="muted small">UID permitido: <b>Nf4mGSSXoVhN8Y8lHsP31khYikL2</b></p>
       <button id="notAdminLogoutBtn" class="btn danger" type="button">Sair</button>
     </section>
 
     <!-- PAINEL ADMIN -->
     <section id="panelSection" class="card hidden">
       <h2>Painel Admin</h2>
-      <p class="muted">
-        Aqui você edita o DLC em tempo real. O jogo lê esses dados do Firestore (leitura pública, escrita só admin).
+      <p class="muted">Importe os modelos principais com 1 clique, e o jogo atualiza automaticamente (DLC realtime).</p>
+
+      <div class="hr"></div>
+
+      <h3>Importar modelos principais (1 clique)</h3>
+      <p class="muted small">
+        Isso vai sobrescrever <b>public/dlc.aircraftCatalog</b> com uma lista pronta (Airbus/Boeing/Embraer/ATR etc).
+        Depois você só coloca as fotos na pasta <b>assets/aircraft/</b>.
       </p>
 
-      <div class="tabs">
-        <button class="tab active" data-tab="catalog" type="button">Catálogo</button>
-        <button class="tab" data-tab="airports" type="button">Aeroportos</button>
-        <button class="tab" data-tab="candidates" type="button">Candidatos</button>
-        <button class="tab" data-tab="missions" type="button">Missões</button>
+      <div class="row">
+        <button id="importBtn" class="btn" type="button">Importar principais agora</button>
+        <button id="exportBtn" class="btn ghost" type="button">Exportar (copiar JSON)</button>
       </div>
 
-      <div id="tabArea"></div>
+      <div id="importMsg" class="muted" style="margin-top:10px;"></div>
 
-      <div class="card mini" style="margin-top:14px;">
-        <h3>Boas práticas</h3>
-        <ul class="muted" style="margin:10px 0 0; line-height:1.5;">
-          <li>Use IDs únicos no catálogo (ex: CAT-A320, CAT-B737).</li>
-          <li>Use códigos IATA nos aeroportos (3 letras).</li>
-          <li>Evite remover modelos que já estão em frota/rotas no save local dos jogadores.</li>
-        </ul>
+      <div class="hr"></div>
+
+      <h3>Catálogo (visual)</h3>
+      <div id="catalogPreview" class="muted small">Carregando...</div>
+
+      <div class="hr"></div>
+
+      <h3>Editor manual (opcional)</h3>
+      <p class="muted small">Você pode editar o JSON e salvar.</p>
+      <textarea id="editor"></textarea>
+      <div class="row" style="margin-top:10px;">
+        <button id="saveEditorBtn" class="btn" type="button">Salvar JSON no Firestore</button>
+        <span class="muted small">Dica: o JSON deve ter: {"aircraftCatalog":[...]}</span>
       </div>
+      <div id="editorMsg" class="muted" style="margin-top:10px;"></div>
     </section>
 
   </main>
 
-  <!-- Config Firebase (NÃO module) -->
+  <!-- Firebase config global -->
   <script src="js/firebase-config.js"></script>
 
-  <!-- Admin (module) -->
-  <script type="module" src="js/admin-firebase.js"></script>
+  <!-- Firebase SDK (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-  <!-- Estilos mínimos para badge/ações caso seu admin.css não tenha -->
-  <style>
-    .admin-actions{display:flex;gap:10px;align-items:center;}
-    .user-badge{padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);font-weight:900;}
-    .hidden{display:none;}
-    .btn.danger{background: rgba(255,59,59,.18); border-color: rgba(255,59,59,.35);}
-  </style>
+  <script>
+    // ====== CONFIG ======
+    const ADMIN_UID = "Nf4mGSSXoVhN8Y8lHsP31khYikL2";
+    const DLC_DOC_PATH = { collection: "public", doc: "dlc" };
+
+    // ====== MODELOS PRINCIPAIS (PRONTOS) ======
+    // Fotos depois: assets/aircraft/<modelId>.jpg
+    const MAIN_AIRCRAFT_CATALOG = [
+      // Airbus A220
+      { modelId:"A220-100", name:"Airbus A220-100", manufacturer:"Airbus", seats:120, rangeKm:6390, cruiseKts:450, price:420000000, fuelBurnPerKm:1.7, imageRef:"assets/aircraft/A220-100.jpg" },
+      { modelId:"A220-300", name:"Airbus A220-300", manufacturer:"Airbus", seats:145, rangeKm:6110, cruiseKts:450, price:450000000, fuelBurnPerKm:1.8, imageRef:"assets/aircraft/A220-300.jpg" },
+
+      // Airbus A320 family
+      { modelId:"A319", name:"Airbus A319", manufacturer:"Airbus", seats:140, rangeKm:6850, cruiseKts:450, price:400000000, fuelBurnPerKm:2.1, imageRef:"assets/aircraft/A319.jpg" },
+      { modelId:"A320-200", name:"Airbus A320-200", manufacturer:"Airbus", seats:180, rangeKm:6100, cruiseKts:450, price:450000000, fuelBurnPerKm:2.4, imageRef:"assets/aircraft/A320-200.jpg" },
+      { modelId:"A321", name:"Airbus A321", manufacturer:"Airbus", seats:220, rangeKm:5950, cruiseKts:450, price:520000000, fuelBurnPerKm:2.7, imageRef:"assets/aircraft/A321.jpg" },
+
+      // Airbus neo
+      { modelId:"A320NEO", name:"Airbus A320neo", manufacturer:"Airbus", seats:180, rangeKm:6500, cruiseKts:450, price:480000000, fuelBurnPerKm:2.2, imageRef:"assets/aircraft/A320NEO.jpg" },
+      { modelId:"A321NEO", name:"Airbus A321neo", manufacturer:"Airbus", seats:230, rangeKm:7400, cruiseKts:450, price:560000000, fuelBurnPerKm:2.5, imageRef:"assets/aircraft/A321NEO.jpg" },
+      { modelId:"A321XLR", name:"Airbus A321XLR", manufacturer:"Airbus", seats:200, rangeKm:8700, cruiseKts:450, price:620000000, fuelBurnPerKm:2.5, imageRef:"assets/aircraft/A321XLR.jpg" },
+
+      // Airbus widebody
+      { modelId:"A330-300", name:"Airbus A330-300", manufacturer:"Airbus", seats:300, rangeKm:11750, cruiseKts:470, price:1300000000, fuelBurnPerKm:6.1, imageRef:"assets/aircraft/A330-300.jpg" },
+      { modelId:"A350-900", name:"Airbus A350-900", manufacturer:"Airbus", seats:325, rangeKm:15000, cruiseKts:488, price:1700000000, fuelBurnPerKm:5.3, imageRef:"assets/aircraft/A350-900.jpg" },
+      { modelId:"A350-1000", name:"Airbus A350-1000", manufacturer:"Airbus", seats:369, rangeKm:16100, cruiseKts:488, price:1900000000, fuelBurnPerKm:5.8, imageRef:"assets/aircraft/A350-1000.jpg" },
+      { modelId:"A380-800", name:"Airbus A380-800", manufacturer:"Airbus", seats:525, rangeKm:15200, cruiseKts:490, price:2400000000, fuelBurnPerKm:9.8, imageRef:"assets/aircraft/A380-800.jpg" },
+
+      // Boeing 737 NG
+      { modelId:"B737-700", name:"Boeing 737-700", manufacturer:"Boeing", seats:140, rangeKm:6370, cruiseKts:440, price:420000000, fuelBurnPerKm:2.2, imageRef:"assets/aircraft/B737-700.jpg" },
+      { modelId:"B737-800", name:"Boeing 737-800", manufacturer:"Boeing", seats:189, rangeKm:5765, cruiseKts:440, price:450000000, fuelBurnPerKm:2.4, imageRef:"assets/aircraft/B737-800.jpg" },
+      { modelId:"B737-900ER", name:"Boeing 737-900ER", manufacturer:"Boeing", seats:215, rangeKm:5925, cruiseKts:440, price:510000000, fuelBurnPerKm:2.6, imageRef:"assets/aircraft/B737-900ER.jpg" },
+
+      // Boeing 737 MAX
+      { modelId:"B737MAX8", name:"Boeing 737 MAX 8", manufacturer:"Boeing", seats:178, rangeKm:6570, cruiseKts:440, price:520000000, fuelBurnPerKm:2.2, imageRef:"assets/aircraft/B737MAX8.jpg" },
+      { modelId:"B737MAX9", name:"Boeing 737 MAX 9", manufacturer:"Boeing", seats:193, rangeKm:6570, cruiseKts:440, price:560000000, fuelBurnPerKm:2.4, imageRef:"assets/aircraft/B737MAX9.jpg" },
+
+      // Boeing widebody
+      { modelId:"B777-300ER", name:"Boeing 777-300ER", manufacturer:"Boeing", seats:396, rangeKm:13650, cruiseKts:490, price:2000000000, fuelBurnPerKm:7.4, imageRef:"assets/aircraft/B777-300ER.jpg" },
+      { modelId:"B787-9", name:"Boeing 787-9 Dreamliner", manufacturer:"Boeing", seats:290, rangeKm:14140, cruiseKts:488, price:1750000000, fuelBurnPerKm:5.6, imageRef:"assets/aircraft/B787-9.jpg" },
+
+      // Embraer E-Jets
+      { modelId:"E175", name:"Embraer E175", manufacturer:"Embraer", seats:76, rangeKm:3700, cruiseKts:430, price:240000000, fuelBurnPerKm:1.3, imageRef:"assets/aircraft/E175.jpg" },
+      { modelId:"E190", name:"Embraer E190", manufacturer:"Embraer", seats:100, rangeKm:4537, cruiseKts:440, price:280000000, fuelBurnPerKm:1.5, imageRef:"assets/aircraft/E190.jpg" },
+      { modelId:"E195-E2", name:"Embraer E195-E2", manufacturer:"Embraer", seats:132, rangeKm:4815, cruiseKts:440, price:340000000, fuelBurnPerKm:1.5, imageRef:"assets/aircraft/E195-E2.jpg" },
+
+      // ATR
+      { modelId:"ATR72-600", name:"ATR 72-600", manufacturer:"ATR", seats:70, rangeKm:1528, cruiseKts:300, price:140000000, fuelBurnPerKm:0.9, imageRef:"assets/aircraft/ATR72-600.jpg" },
+
+      // Dash 8 Q400
+      { modelId:"DHC8-Q400", name:"Dash 8 Q400", manufacturer:"De Havilland Canada", seats:78, rangeKm:2520, cruiseKts:360, price:160000000, fuelBurnPerKm:0.95, imageRef:"assets/aircraft/DHC8-Q400.jpg" }
+    ];
+
+    // ====== INIT FIREBASE ======
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // ====== DOM ======
+    const loginSection = document.getElementById("loginSection");
+    const notAdminSection = document.getElementById("notAdminSection");
+    const panelSection = document.getElementById("panelSection");
+
+    const userBadge = document.getElementById("userBadge");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    const emailEl = document.getElementById("email");
+    const passEl = document.getElementById("pass");
+    const loginBtn = document.getElementById("loginBtn");
+    const loginMsg = document.getElementById("loginMsg");
+
+    const notAdminLogoutBtn = document.getElementById("notAdminLogoutBtn");
+
+    const importBtn = document.getElementById("importBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const importMsg = document.getElementById("importMsg");
+    const catalogPreview = document.getElementById("catalogPreview");
+
+    const editor = document.getElementById("editor");
+    const saveEditorBtn = document.getElementById("saveEditorBtn");
+    const editorMsg = document.getElementById("editorMsg");
+
+    function setUIState(state) {
+      // state: "loggedOut" | "notAdmin" | "admin"
+      loginSection.classList.toggle("hidden", state !== "loggedOut");
+      notAdminSection.classList.toggle("hidden", state !== "notAdmin");
+      panelSection.classList.toggle("hidden", state !== "admin");
+
+      const logged = state !== "loggedOut";
+      userBadge.classList.toggle("hidden", !logged);
+      logoutBtn.classList.toggle("hidden", !logged);
+    }
+
+    function showCatalogPreview(list) {
+      if (!Array.isArray(list) || list.length === 0) {
+        catalogPreview.innerHTML = "Nenhum modelo no catálogo ainda.";
+        return;
+      }
+      catalogPreview.innerHTML = list.map(m =>
+        `• <b>${m.modelId}</b> — ${m.name} <span class="muted">(${m.imageRef})</span>`
+      ).join("<br/>");
+    }
+
+    async function loadDlcToEditor() {
+      const ref = db.collection(DLC_DOC_PATH.collection).doc(DLC_DOC_PATH.doc);
+      const snap = await ref.get();
+      const data = snap.exists ? snap.data() : {};
+      editor.value = JSON.stringify(data || {}, null, 2);
+      showCatalogPreview(data.aircraftCatalog || []);
+    }
+
+    async function saveDlc(obj) {
+      const ref = db.collection(DLC_DOC_PATH.collection).doc(DLC_DOC_PATH.doc);
+      await ref.set(obj, { merge: true });
+    }
+
+    // ====== AUTH ======
+    loginBtn.addEventListener("click", async () => {
+      loginMsg.textContent = "Entrando...";
+      try {
+        await auth.signInWithEmailAndPassword(emailEl.value.trim(), passEl.value);
+        loginMsg.innerHTML = "<span class='ok'>Login OK.</span>";
+      } catch (e) {
+        console.error(e);
+        loginMsg.innerHTML = "<span class='bad'>Falha no login.</span> " + (e.message || "");
+      }
+    });
+
+    logoutBtn.addEventListener("click", () => auth.signOut());
+    notAdminLogoutBtn.addEventListener("click", () => auth.signOut());
+
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        setUIState("loggedOut");
+        userBadge.textContent = "";
+        return;
+      }
+
+      userBadge.textContent = `UID: ${user.uid}`;
+
+      if (user.uid !== ADMIN_UID) {
+        setUIState("notAdmin");
+        return;
+      }
+
+      setUIState("admin");
+      await loadDlcToEditor();
+    });
+
+    // ====== Import principal ======
+    importBtn.addEventListener("click", async () => {
+      importMsg.textContent = "Importando...";
+      try {
+        await saveDlc({ aircraftCatalog: MAIN_AIRCRAFT_CATALOG });
+        importMsg.innerHTML = "<span class='ok'>Importado com sucesso! Abra o jogo e veja em Comprar Aeronave.</span>";
+        await loadDlcToEditor();
+      } catch (e) {
+        console.error(e);
+        importMsg.innerHTML = "<span class='bad'>Erro ao importar.</span> " + (e.message || "");
+      }
+    });
+
+    exportBtn.addEventListener("click", async () => {
+      try {
+        const ref = db.collection(DLC_DOC_PATH.collection).doc(DLC_DOC_PATH.doc);
+        const snap = await ref.get();
+        const data = snap.exists ? snap.data() : {};
+        const json = JSON.stringify(data || {}, null, 2);
+        await navigator.clipboard.writeText(json);
+        importMsg.innerHTML = "<span class='ok'>JSON copiado!</span>";
+      } catch (e) {
+        console.error(e);
+        importMsg.innerHTML = "<span class='bad'>Não consegui copiar (permite clipboard?).</span>";
+      }
+    });
+
+    // ====== Save editor ======
+    saveEditorBtn.addEventListener("click", async () => {
+      editorMsg.textContent = "Salvando...";
+      try {
+        const obj = JSON.parse(editor.value || "{}");
+        if (!obj || typeof obj !== "object") throw new Error("JSON inválido.");
+
+        if (obj.aircraftCatalog && !Array.isArray(obj.aircraftCatalog)) {
+          throw new Error("aircraftCatalog precisa ser um array.");
+        }
+
+        await saveDlc(obj);
+        editorMsg.innerHTML = "<span class='ok'>Salvo no Firestore!</span>";
+        showCatalogPreview((obj.aircraftCatalog || []));
+      } catch (e) {
+        console.error(e);
+        editorMsg.innerHTML = "<span class='bad'>Erro:</span> " + (e.message || "");
+      }
+    });
+  </script>
 </body>
 </html>
