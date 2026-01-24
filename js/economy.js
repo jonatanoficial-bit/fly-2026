@@ -1,1 +1,1 @@
-// economy.js completo enviado no chat
+window.EconomyModule={applyDailyOps(d){d.company.cash+=Math.floor(Math.random()*2000000)}};

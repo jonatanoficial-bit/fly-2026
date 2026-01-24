@@ -1,1 +1,7 @@
-(function(){const s=FlySimStore.load();if(s)window.flightData=s;MapModule.init();UIModule.init();GameModule.init();})();
+(function(){
+ const s=FlySimStore.load();
+ if(s)window.flightData=s;
+ MapModule.init();
+ UIModule.init();
+ GameModule.init();
+})();
