@@ -20,45 +20,58 @@
       --card:rgba(255,255,255,.06);
       --shadow: 0 20px 50px rgba(0,0,0,.55);
       --radius:16px;
+      --panelW:420px;
+      --topH:56px;
     }
     html,body{margin:0;height:100%;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
-    #map{position:fixed;inset:0;z-index:1}
+    /* Desktop layout: map leaves space for right panel */
+    #map{
+      position:fixed;
+      top:var(--topH);
+      left:0;
+      right:var(--panelW);
+      bottom:0;
+      z-index:1;
+    }
     /* Topbar */
     #topbar{
-      position:fixed;left:0;right:0;top:0;
+      position:fixed;left:0;right:0;top:0;height:var(--topH);
       z-index:1200;
       padding:10px 12px;
       display:flex;gap:10px;align-items:center;justify-content:space-between;
-      background:linear-gradient(180deg, rgba(2,6,23,.92), rgba(2,6,23,.65));
+      background:linear-gradient(180deg, rgba(2,6,23,.92), rgba(2,6,23,.70));
       backdrop-filter: blur(10px);
       border-bottom:1px solid rgba(255,255,255,.08);
+      box-sizing:border-box;
     }
     #brand{display:flex;gap:10px;align-items:center;font-weight:900;letter-spacing:.3px}
     #brand .dot{width:10px;height:10px;border-radius:999px;background:#60a5fa;box-shadow:0 0 18px rgba(96,165,250,.8)}
-    #menuBtn{
-      padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
-      background:rgba(15,23,42,.55);color:#fff;font-weight:800;
-    }
     #hud{display:flex;gap:10px;align-items:center;font-size:12px;opacity:.95;}
     .chip{
       padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);
       background:rgba(15,23,42,.55);
       white-space:nowrap;
     }
+    #menuBtn{
+      padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+      background:rgba(15,23,42,.55);color:#fff;font-weight:800;
+    }
 
-    /* Panel drawer */
+    /* Right panel (desktop) */
     #panel{
-      position:fixed;top:0;right:0;height:100%;width:min(420px, 92vw);
+      position:fixed;top:var(--topH);right:0;bottom:0;width:var(--panelW);
       z-index:1300;
       background:var(--panel);
-      box-shadow:-8px 0 30px rgba(0,0,0,.65);
+      border-left:1px solid rgba(255,255,255,.08);
+      overflow:auto;
+      box-shadow:-8px 0 30px rgba(0,0,0,.55);
       transform: translateX(0%);
       transition: transform .22s ease;
-      display:flex;flex-direction:column;
-      border-left:1px solid rgba(255,255,255,.08);
+      box-sizing:border-box;
     }
     #panel.hidden{transform: translateX(105%);}
-    #panelHeader{padding:58px 14px 12px;display:flex;flex-direction:column;gap:10px;}
+
+    #panelHeader{padding:14px;display:flex;flex-direction:column;gap:10px;}
     .card{
       background:var(--card);
       border:1px solid rgba(255,255,255,.08);
@@ -82,6 +95,27 @@
     #panelBody{padding:0 14px 14px;overflow:auto}
     img.aircraft{width:100%;max-width:320px;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:#0b1220}
     select,input{appearance:none;-webkit-appearance:none;outline:none}
+
+    /* Mobile: map full width, panel becomes drawer overlay */
+    @media (max-width: 860px){
+      :root{ --panelW: 92vw; }
+      #map{ right:0; top:var(--topH); }
+      #panel{
+        top:var(--topH);
+        width:var(--panelW);
+        right:0;
+      }
+      /* When open, overlay dim behind panel */
+      #overlay{
+        position:fixed; inset:var(--topH) 0 0 0;
+        z-index:1250;
+        background:rgba(0,0,0,.35);
+        display:none;
+      }
+      #overlay.show{display:block;}
+    }
+    /* Desktop overlay hidden */
+    #overlay{display:none;}
   </style>
 </head>
 <body>
@@ -96,6 +130,8 @@
       <button id="menuBtn" aria-label="Abrir painel">☰</button>
     </div>
   </div>
+
+  <div id="overlay" aria-hidden="true"></div>
 
   <aside id="panel" aria-label="Painel de gestão">
     <div id="panelHeader">
