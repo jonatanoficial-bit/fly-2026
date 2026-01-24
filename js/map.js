@@ -1,239 +1,198 @@
-// js/map.js (SUBSTITUA INTEIRO) — 2D com aviões se movendo nas rotas
-window.MapModule = (function () {
-  let map;
-  let config = {
-    mapId: "map",
-    center: [-23.55052, -46.633308],
-    zoom: 4
-  };
+// js/map.js — Mapa 2D offline (Canvas) com aviões andando e rotas desenhadas
+(function(){
+  const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
-  let flightMarkers = {};
-  let routeLines = {};
-  let routeMarkers = {};
-  let animTimer = null;
+  let canvas, ctx, bgImg;
+  let w=0, h=0;
+  let selected = { type:null, id:null };
 
-  function init(userConfig) {
-    config = { ...config, ...(userConfig || {}) };
+  // projeção simples (equiretangular)
+  function lonToX(lon){ return (lon + 180) / 360 * w; }
+  function latToY(lat){ return (90 - lat) / 180 * h; }
 
-    const el = document.getElementById(config.mapId);
-    if (!el) {
-      console.error("[MAP] Container #map não encontrado.");
-      return;
+  function resize(){
+    if(!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    w = Math.floor(rect.width * DPR);
+    h = Math.floor(rect.height * DPR);
+    canvas.width = w;
+    canvas.height = h;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(DPR, DPR);
+  }
+
+  function draw(){
+    if(!ctx) return;
+    const state = window.flightData;
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+
+    // fundo
+    ctx.clearRect(0,0,cw,ch);
+    if(bgImg && bgImg.complete){
+      ctx.drawImage(bgImg, 0, 0, cw, ch);
+    } else {
+      ctx.fillStyle = "#0b1420";
+      ctx.fillRect(0,0,cw,ch);
     }
-    if (!window.L) {
-      console.error("[MAP] Leaflet não carregou (window.L undefined).");
-      return;
+
+    // rotas
+    const routes = (state.routes||[]).filter(r=>r.active);
+    ctx.lineWidth = 2;
+    for(const r of routes){
+      const o = (state.airports||[]).find(a=>a.code===r.origin);
+      const d = (state.airports||[]).find(a=>a.code===r.destination);
+      if(!o||!d) continue;
+
+      const ox = lonToX(o.lon) / DPR;
+      const oy = latToY(o.lat) / DPR;
+      const dx = lonToX(d.lon) / DPR;
+      const dy = latToY(d.lat) / DPR;
+
+      const isSel = selected.type==="route" && selected.id===r.routeId;
+      ctx.strokeStyle = isSel ? "rgba(57,183,255,.95)" : "rgba(234,241,255,.25)";
+      ctx.setLineDash(isSel ? [6,4] : [10,10]);
+      ctx.beginPath();
+      ctx.moveTo(ox,oy);
+      ctx.lineTo(dx,dy);
+      ctx.stroke();
     }
+    ctx.setLineDash([]);
 
-    if (map) {
-      try { map.remove(); } catch (_) {}
-      map = null;
-    }
+    // aeroportos
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    for(const a of (state.airports||[])){
+      const x = lonToX(a.lon)/DPR;
+      const y = latToY(a.lat)/DPR;
+      ctx.fillStyle = "rgba(234,241,255,.85)";
+      ctx.beginPath();
+      ctx.arc(x,y,3,0,Math.PI*2);
+      ctx.fill();
 
-    map = L.map(config.mapId, { zoomControl: true, preferCanvas: true })
-      .setView(config.center, config.zoom);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
-    }).addTo(map);
-
-    window.addEventListener("dlc-updated", () => refresh());
-
-    refresh();
-    startAnimation();
-
-    const loading = document.getElementById("mapLoading");
-    if (loading) loading.style.display = "none";
-
-    console.log("[MAP] 2D inicializado OK.");
-  }
-
-  function refresh() {
-    if (!map) return;
-    clearAll();
-    renderRoutes();
-    renderFlights();
-  }
-
-  function clearAll() {
-    Object.values(flightMarkers).forEach(m => { try { map.removeLayer(m); } catch (_) {} });
-    Object.values(routeLines).forEach(l => { try { map.removeLayer(l); } catch (_) {} });
-    Object.values(routeMarkers).forEach(m => { try { map.removeLayer(m); } catch (_) {} });
-    flightMarkers = {};
-    routeLines = {};
-    routeMarkers = {};
-  }
-
-  // ---------- Render ----------
-  function renderRoutes() {
-    const d = window.flightData || {};
-    (d.routes || []).forEach(r => {
-      const o = (d.airports || []).find(a => a.code === r.origin);
-      const de = (d.airports || []).find(a => a.code === r.destination);
-      if (!o || !de) return;
-
-      const line = L.polyline([[o.lat, o.lon], [de.lat, de.lon]], {
-        weight: r.active ? 4 : 2,
-        opacity: r.active ? 0.85 : 0.35
-      }).addTo(map);
-
-      routeLines[r.routeId] = line;
-
-      const mid = { lat: (o.lat + de.lat) / 2, lon: (o.lon + de.lon) / 2 };
-      const marker = L.circleMarker([mid.lat, mid.lon], {
-        radius: 7,
-        opacity: 0.9,
-        fillOpacity: 0.7
-      }).addTo(map);
-
-      routeMarkers[r.routeId] = marker;
-
-      const popup = `
-        <div style="min-width:220px">
-          <div style="font-weight:900; margin-bottom:6px">Rota ${r.origin} → ${r.destination} ${r.active ? "" : "(INATIVA)"}</div>
-          <div><b>Preço:</b> R$ ${Number(r.ticketPrice).toFixed(0)}</div>
-          <div><b>Freq/dia:</b> ${r.frequencyPerDay}</div>
-          <div style="margin-top:10px;">
-            <button style="padding:8px 10px; border-radius:10px; border:1px solid #ccc; cursor:pointer;"
-              onclick="UIModule.openPanel(); UIModule.selectTab('routes')">Abrir gestão</button>
-          </div>
-        </div>
-      `;
-
-      marker.bindPopup(popup);
-      marker.on("click", () => marker.openPopup());
-      line.on("click", () => marker.openPopup());
-    });
-  }
-
-  function renderFlights() {
-    const d = window.flightData || {};
-    const icon = L.icon({
-      iconUrl: "assets/images/plane.png",
-      iconSize: [34, 34],
-      iconAnchor: [17, 17],
-      popupAnchor: [0, -16]
-    });
-
-    (d.flights || []).forEach(f => {
-      if (!f.position) {
-        // se não existir posição, inicia na origem
-        f.position = { lat: f.origin.lat, lon: f.origin.lon };
+      // etiqueta apenas para hubs principais (ou selecionado)
+      if(["GRU","GIG","BSB","LHR","CDG","JFK","LAX","DXB","HND","SIN"].includes(a.code) || (selected.type==="airport" && selected.id===a.code)){
+        ctx.fillStyle = "rgba(234,241,255,.70)";
+        ctx.fillText(a.code, x+6, y-6);
       }
-      if (typeof f.progress01 !== "number") f.progress01 = Math.random() * 0.25;
-
-      const marker = L.marker([f.position.lat, f.position.lon], { icon }).addTo(map);
-      flightMarkers[f.id] = marker;
-
-      const popup = `
-        <div style="min-width:240px">
-          <div style="font-weight:900; margin-bottom:6px">${f.flightNumber}</div>
-          <div><b>${f.origin.code}</b> → <b>${f.destination.code}</b></div>
-          <div style="margin-top:6px;"><b>Status:</b> ${f.status}</div>
-          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-            <button style="padding:8px 10px; border-radius:10px; border:1px solid #ccc; cursor:pointer;"
-              onclick="UIModule.openPanel(); UIModule.selectTab('flights')">Abrir voos</button>
-            <button style="padding:8px 10px; border-radius:10px; border:1px solid #ccc; cursor:pointer;"
-              onclick="UIModule.completeFlight('${f.id}')">Concluir (lucro)</button>
-          </div>
-        </div>
-      `;
-
-      marker.bindPopup(popup);
-      marker.on("click", () => marker.openPopup());
-    });
-  }
-
-  // ---------- Animação 2D ----------
-  function startAnimation() {
-    stopAnimation();
-    animTimer = setInterval(tick, 1000 / 30); // 30 fps
-  }
-
-  function stopAnimation() {
-    if (animTimer) clearInterval(animTimer);
-    animTimer = null;
-  }
-
-  function tick() {
-    if (!map) return;
-    const d = window.flightData || {};
-    const flights = d.flights || [];
-    const speed = 0.0007; // velocidade base (ajuste fino)
-
-    for (const f of flights) {
-      if (!f || !f.origin || !f.destination) continue;
-      if (f.status === "FINALIZADO") continue;
-
-      // se rota estiver inativa, não move
-      const r = (d.routes || []).find(x => x.routeId === f.routeId);
-      if (r && r.active === false) continue;
-
-      const p = typeof f.progress01 === "number" ? f.progress01 : 0;
-      const next = p + speed;
-
-      // loop infinito (avião vai e volta na rota)
-      // quando chega em 1, volta pra 0
-      f.progress01 = next >= 1 ? 0 : next;
-
-      const lat = lerp(f.origin.lat, f.destination.lat, f.progress01);
-      const lon = lerp(f.origin.lon, f.destination.lon, f.progress01);
-
-      f.position = { lat, lon };
-
-      const marker = flightMarkers[f.id];
-      if (marker) marker.setLatLng([lat, lon]);
     }
 
-    // salva a cada ~4s pra não pesar
-    maybeAutosave();
+    // aviões
+    const flights = (state.flights||[]).filter(f=>f.status==="EM_ROTA");
+    for(const f of flights){
+      const ox = lonToX(f.origin.lon)/DPR;
+      const oy = latToY(f.origin.lat)/DPR;
+      const dx = lonToX(f.destination.lon)/DPR;
+      const dy = latToY(f.destination.lat)/DPR;
+
+      const x = ox + (dx-ox)*(f.progress01||0);
+      const y = oy + (dy-oy)*(f.progress01||0);
+
+      const isSel = selected.type==="flight" && selected.id===f.id;
+
+      // halo
+      ctx.fillStyle = isSel ? "rgba(57,183,255,.25)" : "rgba(255,255,255,.12)";
+      ctx.beginPath();
+      ctx.arc(x,y,10,0,Math.PI*2);
+      ctx.fill();
+
+      // corpo
+      ctx.fillStyle = isSel ? "rgba(57,183,255,.95)" : "rgba(234,241,255,.90)";
+      ctx.beginPath();
+      ctx.arc(x,y,4,0,Math.PI*2);
+      ctx.fill();
+
+      // label curto
+      ctx.fillStyle = "rgba(234,241,255,.70)";
+      ctx.fillText(f.flightNumber, x+8, y+4);
+    }
   }
 
-  let lastSave = 0;
-  function maybeAutosave() {
-    const now = Date.now();
-    if (now - lastSave < 4000) return;
-    lastSave = now;
-    if (window.FlySimStore?.save) window.FlySimStore.save(window.flightData);
+  function hitTest(px, py){
+    // px/py em CSS pixels
+    const state = window.flightData;
+    const flights = (state.flights||[]).filter(f=>f.status==="EM_ROTA");
+    // flights first
+    for(const f of flights){
+      const ox = lonToX(f.origin.lon)/DPR;
+      const oy = latToY(f.origin.lat)/DPR;
+      const dx = lonToX(f.destination.lon)/DPR;
+      const dy = latToY(f.destination.lat)/DPR;
+      const x = ox + (dx-ox)*(f.progress01||0);
+      const y = oy + (dy-oy)*(f.progress01||0);
+      const dist = Math.hypot(px-x, py-y);
+      if(dist < 14){
+        return {type:"flight", id:f.id};
+      }
+    }
+    // routes
+    const routes = (state.routes||[]).filter(r=>r.active);
+    for(const r of routes){
+      const o = (state.airports||[]).find(a=>a.code===r.origin);
+      const d = (state.airports||[]).find(a=>a.code===r.destination);
+      if(!o||!d) continue;
+      const x1 = lonToX(o.lon)/DPR, y1=latToY(o.lat)/DPR;
+      const x2 = lonToX(d.lon)/DPR, y2=latToY(d.lat)/DPR;
+      // distance from point to segment
+      const dxs=x2-x1, dys=y2-y1;
+      const len2=dxs*dxs+dys*dys;
+      let t = len2? ((px-x1)*dxs+(py-y1)*dys)/len2 : 0;
+      t = Math.max(0,Math.min(1,t));
+      const cx = x1 + t*dxs;
+      const cy = y1 + t*dys;
+      const dist = Math.hypot(px-cx, py-cy);
+      if(dist < 10){
+        return {type:"route", id:r.routeId};
+      }
+    }
+    // airports
+    for(const a of (state.airports||[])){
+      const x = lonToX(a.lon)/DPR, y = latToY(a.lat)/DPR;
+      if(Math.hypot(px-x, py-y) < 10){
+        return {type:"airport", id:a.code};
+      }
+    }
+    return {type:null, id:null};
   }
 
-  function lerp(a, b, t) {
-    return a + (b - a) * t;
+  function setSelected(sel){
+    selected = sel || {type:null,id:null};
+    window.dispatchEvent(new CustomEvent("map-selection", {detail: selected}));
   }
 
-  // ---------- Focus helpers ----------
-  function focusFlight(id) {
-    const f = (window.flightData?.flights || []).find(x => x.id === id);
-    if (!f || !map || !f.position) return;
-    map.setView([f.position.lat, f.position.lon], 6, { animate: true });
-    flightMarkers[id]?.openPopup();
+  function onPointer(e){
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left);
+    const y = (e.clientY - rect.top);
+    const hit = hitTest(x,y);
+    setSelected(hit);
   }
 
-  function focusRoute(routeId) {
-    const d = window.flightData || {};
-    const r = (d.routes || []).find(x => x.routeId === routeId);
-    if (!r || !map) return;
+  function init(){
+    canvas = document.getElementById("mapCanvas");
+    const loading = document.getElementById("mapLoading");
+    if(!canvas) return;
 
-    const o = (d.airports || []).find(a => a.code === r.origin);
-    const de = (d.airports || []).find(a => a.code === r.destination);
-    if (!o || !de) return;
+    ctx = canvas.getContext("2d", {alpha:true});
+    bgImg = new Image();
+    bgImg.src = "assets/images/map_bg.png";
+    bgImg.onload = () => { if(loading) loading.classList.add("hidden"); draw(); };
 
-    const bounds = L.latLngBounds([[o.lat, o.lon], [de.lat, de.lon]]);
-    map.fitBounds(bounds.pad(0.25));
-    routeMarkers[routeId]?.openPopup();
+    resize();
+    window.addEventListener("resize", () => { resize(); draw(); });
+
+    canvas.addEventListener("click", onPointer, {passive:true});
+    canvas.addEventListener("touchstart", (e)=>{ 
+      const t = e.touches && e.touches[0]; if(!t) return;
+      onPointer({clientX:t.clientX, clientY:t.clientY});
+    }, {passive:true});
+
+    // render loop
+    function loop(){
+      draw();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
   }
 
-  function centerOnCompany() {
-    if (!map) return;
-    map.setView(config.center, config.zoom, { animate: true });
-  }
-
-  return {
-    init,
-    refresh,
-    focusFlight,
-    focusRoute,
-    centerOnCompany
-  };
+  window.MapModule = { init, setSelected };
 })();

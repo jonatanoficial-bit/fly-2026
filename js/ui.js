@@ -1,678 +1,689 @@
-// js/ui.js (SUBSTITUA INTEIRO)
-window.UIModule = (function () {
-  let sidePanel, backdrop, menuBtn, closePanel, tabContent;
-  let activeTab = "overview";
-  let clockInterval = null;
+// js/ui.js — UI AAA (mobile-first) + Tutorial (≈5 min)
+(function(){
+  let sideVisible = false;
+  let currentTab = "overview";
 
-  // =========================
-  // Helpers
-  // =========================
-  function fmtMoney(n) {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(n || 0));
+  function money(n){
+    const v = Number(n||0);
+    return v.toLocaleString("pt-BR", {style:"currency", currency:"USD", maximumFractionDigits:0});
+  }
+  function pct(n){
+    return Math.round((Number(n||0))*100) + "%";
+  }
+  function clock(){
+    const t = window.flightData?.time;
+    if(!t) return "—";
+    const h = Math.floor((t.minuteOfDay||0)/60)%24;
+    const m = Math.floor((t.minuteOfDay||0)%60);
+    return `Dia ${t.day} • ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   }
 
-  function fmtNow() {
-    const d = new Date();
-    const dia = d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
-    const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    return `${dia} • ${hora}`;
-  }
+  function init(){
+    // ensure modules started
+    window.MapModule?.init();
+    window.GameModule?.init();
 
-  function _safe(fn) {
-    try { fn(); }
-    catch (e) {
-      console.error(e);
-      alert("Erro ao executar ação. Veja o console.");
+    const menuBtn = document.getElementById("menuBtn");
+    const sidePanel = document.getElementById("sidePanel");
+    const tabContent = document.getElementById("tabContent");
+
+    menuBtn?.addEventListener("click", ()=>{
+      sideVisible = !sideVisible;
+      sidePanel.classList.toggle("visible", sideVisible);
+    });
+
+    // tabs
+    document.querySelectorAll(".tabBtn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        switchTab(btn.dataset.tab);
+        document.querySelectorAll(".tabBtn").forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+      });
+    });
+
+    // tutorial
+    setupTutorial();
+
+    // map selection -> open panel & show relevant info
+    window.addEventListener("map-selection", (e)=>{
+      const sel = e.detail || {};
+      if(!sel.type) return;
+      if(!sideVisible && window.innerWidth < 980){
+        sideVisible = true;
+        sidePanel.classList.add("visible");
+      }
+      // open contextual tab
+      if(sel.type === "flight") switchTab("flights", {focusFlightId: sel.id});
+      else if(sel.type === "route") switchTab("routes", {focusRouteId: sel.id});
+      else if(sel.type === "airport") switchTab("routes", {focusAirport: sel.id});
+    });
+
+    window.addEventListener("game-tick", ()=>{
+      // keep current tab fresh without flicker
+      render(tabContent, currentTab);
+    });
+
+    // first time tutorial
+    const first = !localStorage.getItem("flysim_tutorial_done");
+    if(first){
+      openTutorial(0);
     }
+
+    // initial render
+    render(tabContent, currentTab);
   }
 
-  function getAirport(code) {
-    return (window.flightData?.airports || []).find(a => a.code === code);
+  function switchTab(tab, opts={}){
+    currentTab = tab;
+    const tabContent = document.getElementById("tabContent");
+    render(tabContent, tab, opts);
   }
 
-  function getModel(modelId) {
-    return (window.flightData?.aircraftCatalog || []).find(m => m.modelId === modelId);
+  function render(root, tab, opts={}){
+    if(!root) return;
+    if(tab === "overview") root.innerHTML = viewOverview();
+    else if(tab === "fleet") root.innerHTML = viewFleet();
+    else if(tab === "routes") root.innerHTML = viewRoutes(opts);
+    else if(tab === "flights") root.innerHTML = viewFlights(opts);
+    else if(tab === "staff") root.innerHTML = viewStaff();
+    else if(tab === "missions") root.innerHTML = viewMissions();
+    else if(tab === "settings") root.innerHTML = viewSettings();
+    else root.innerHTML = viewOverview();
+
+    wireActions(root, tab, opts);
   }
 
-  function getAircraft(aircraftId) {
-    return (window.flightData?.fleet || []).find(a => a.aircraftId === aircraftId);
-  }
+  function viewOverview(){
+    const s = window.flightData;
+    const cash = s.company?.cash || 0;
+    const rep = s.company?.reputation || 0;
 
-  function ensureLedger() {
-    const d = window.flightData;
-    if (!Array.isArray(d.ledger)) d.ledger = [];
-  }
+    const ledger = (s.ledger||[]).slice(0, 8).map(l=>`
+      <div class="row">
+        <div>
+          <div class="small"><b>${escapeHtml(l.type)}</b> • <span class="muted">${escapeHtml(l.ref||"")}</span></div>
+          <div class="small muted">${escapeHtml(l.detail||"")}</div>
+        </div>
+        <div class="badge ${Number(l.amount)>=0 ? "good":"bad"}">${money(l.amount)}</div>
+      </div>
+    `).join("<div class='hr'></div>");
 
-  function addLedgerEntry(entry) {
-    ensureLedger();
-    const d = window.flightData;
-    d.ledger.unshift({
-      id: window.FlySimStore.uid("LED"),
-      at: Date.now(),
-      ...entry
-    });
-    d.ledger = d.ledger.slice(0, 50);
-  }
+    const fleetOk = (s.fleet||[]).filter(p=>p.status==="OK").length;
+    const fleetMaint = (s.fleet||[]).filter(p=>p.status==="MANUTENCAO").length;
+    const flightsActive = (s.flights||[]).filter(f=>f.status==="EM_ROTA").length;
+    const flightsDoneToday = (s.flights||[]).filter(f=>f.status==="FINALIZADO" && f.day===s.time.day).length;
 
-  function refreshAll({ refreshMap = true } = {}) {
-    window.FlySimStore.save(window.flightData);
-    renderTab(activeTab);
-    if (refreshMap && window.MapModule?.refresh) window.MapModule.refresh();
-  }
-
-  // =========================
-  // Economia / Lucro
-  // =========================
-  function estimateFlightProfit(flight) {
-    const d = window.flightData;
-    const ac = getAircraft(flight.aircraftId);
-    const model = ac ? getModel(ac.modelId) : null;
-
-    const seats = model?.seats ?? 150;
-    const distanceKm = Number(flight.distanceKm || 800);
-
-    const rep = Number(d.company.reputation || 50);
-    const occupancy = Math.max(0.30, Math.min(0.92, 0.35 + rep / 120));
-
-    const ticket = Number(flight.ticketPrice || 400);
-    const revenue = seats * occupancy * ticket;
-
-    const burnPerKm = Number(model?.fuelBurnPerKm ?? 2.2);
-    const fuelUnits = distanceKm * burnPerKm;
-
-    const fuelUnitPrice = 6.2;
-    const fuelCost = fuelUnits * fuelUnitPrice;
-
-    const airportFees = 22000;
-    const staffCost = 12000;
-    const maintenanceReserve = 8000;
-
-    const costs = fuelCost + airportFees + staffCost + maintenanceReserve;
-    const profit = revenue - costs;
-
-    return { revenue, costs, profit, occupancy, seats, distanceKm };
-  }
-
-  // =========================
-  // Ações de Gestão
-  // =========================
-  function buyAircraft(modelId) {
-    return _safe(() => {
-      const d = window.flightData;
-      const m = getModel(modelId);
-      if (!m) return alert("Modelo inválido.");
-      if (d.company.cash < m.price) return alert("Caixa insuficiente para comprar esta aeronave.");
-
-      d.company.cash -= m.price;
-
-      const aircraftId = window.FlySimStore.uid("AC");
-      const tailNumber = `PP-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-
-      d.fleet.push({
-        aircraftId,
-        modelId,
-        tailNumber,
-        condition: 100,
-        status: "IDLE"
-      });
-
-      addLedgerEntry({
-        type: "COMPRA_AERONAVE",
-        title: "Compra de aeronave",
-        amount: -m.price,
-        meta: { modelId: m.modelId, name: m.name, tailNumber }
-      });
-
-      refreshAll();
-      alert(`Aeronave comprada: ${m.name} (${tailNumber})`);
-    });
-  }
-
-  function hireCandidate(candidateId) {
-    return _safe(() => {
-      const d = window.flightData;
-      const idx = (d.candidates || []).findIndex(c => c.id === candidateId);
-      if (idx < 0) return;
-
-      const c = d.candidates[idx];
-      const hiringFee = Math.round(c.salary * 2);
-
-      if (d.company.cash < hiringFee) {
-        return alert(`Caixa insuficiente. Necessário: ${fmtMoney(hiringFee)}.`);
-      }
-
-      d.company.cash -= hiringFee;
-
-      d.staff.push({
-        id: window.FlySimStore.uid("ST"),
-        name: c.name,
-        role: c.role,
-        salary: c.salary,
-        morale: c.morale
-      });
-
-      d.candidates.splice(idx, 1);
-
-      addLedgerEntry({
-        type: "CONTRATACAO",
-        title: `Contratação: ${c.name} (${c.role})`,
-        amount: -hiringFee,
-        meta: { salary: c.salary }
-      });
-
-      refreshAll({ refreshMap: false });
-      alert(`Contratado: ${c.name} (${c.role})`);
-    });
-  }
-
-  function createRoute() {
-    return _safe(() => {
-      const d = window.flightData;
-
-      const origin = document.getElementById("route_origin").value;
-      const destination = document.getElementById("route_destination").value;
-      const ticketPrice = Number(document.getElementById("route_price").value || 0);
-      const freq = Number(document.getElementById("route_freq").value || 1);
-      const assignedAircraftId = document.getElementById("route_aircraft").value;
-
-      if (!origin || !destination || origin === destination) return alert("Escolha origem e destino diferentes.");
-      if (!assignedAircraftId) return alert("Selecione uma aeronave para a rota.");
-      if (ticketPrice <= 0) return alert("Defina um preço de passagem válido.");
-
-      d.routes.push({
-        routeId: window.FlySimStore.uid("RT"),
-        origin,
-        destination,
-        ticketPrice,
-        frequencyPerDay: Math.max(1, Math.min(12, freq)),
-        assignedAircraftId,
-        active: true
-      });
-
-      window.FlySimStore.generateFlightsForRoutes(d);
-
-      addLedgerEntry({
-        type: "NOVA_ROTA",
-        title: `Rota criada: ${origin} → ${destination}`,
-        amount: 0,
-        meta: { ticketPrice, freq, assignedAircraftId }
-      });
-
-      refreshAll();
-      alert("Rota criada e voos gerados!");
-    });
-  }
-
-  function toggleRoute(routeId) {
-    return _safe(() => {
-      const d = window.flightData;
-      const r = (d.routes || []).find(x => x.routeId === routeId);
-      if (!r) return;
-
-      r.active = !r.active;
-      window.FlySimStore.generateFlightsForRoutes(d);
-
-      addLedgerEntry({
-        type: "ROTA_STATUS",
-        title: `Rota ${r.origin} → ${r.destination} ${r.active ? "ativada" : "desativada"}`,
-        amount: 0
-      });
-
-      refreshAll();
-    });
-  }
-
-  function regenerateFlights() {
-    return _safe(() => {
-      window.FlySimStore.generateFlightsForRoutes(window.flightData);
-      addLedgerEntry({ type: "REGERAR_VOOS", title: "Voos regenerados", amount: 0 });
-      refreshAll();
-      alert("Voos regenerados!");
-    });
-  }
-
-  function performMaintenance(aircraftId) {
-    return _safe(() => {
-      const d = window.flightData;
-      const ac = getAircraft(aircraftId);
-      if (!ac) return alert("Aeronave não encontrada.");
-
-      const model = getModel(ac.modelId);
-      const condition = Number(ac.condition ?? 100);
-
-      const base = 50000;
-      const penalty = Math.round((100 - condition) * 2200);
-      const cost = Math.max(20000, base + penalty);
-
-      if (d.company.cash < cost) return alert(`Caixa insuficiente para manutenção. Necessário: ${fmtMoney(cost)}`);
-
-      d.company.cash -= cost;
-      ac.status = "IDLE";
-      ac.condition = 100;
-
-      addLedgerEntry({
-        type: "MANUTENCAO",
-        title: `Manutenção: ${ac.tailNumber} (${model?.name ?? ac.modelId})`,
-        amount: -cost,
-        meta: { aircraftId, tailNumber: ac.tailNumber }
-      });
-
-      refreshAll({ refreshMap: false });
-      alert(`Manutenção concluída: ${ac.tailNumber}\nCusto: ${fmtMoney(cost)}`);
-    });
-  }
-
-  function completeFlight(flightId) {
-    return _safe(() => {
-      const d = window.flightData;
-      const f = (d.flights || []).find(x => x.id === flightId);
-      if (!f) return alert("Voo não encontrado.");
-      if (f.status === "FINALIZADO") return alert("Este voo já foi concluído.");
-
-      const calc = estimateFlightProfit(f);
-
-      f.status = "FINALIZADO";
-      f.completedAt = Date.now();
-      f.revenue = calc.revenue;
-      f.costs = calc.costs;
-      f.profit = calc.profit;
-      f.occupancy = calc.occupancy;
-
-      d.company.cash += calc.profit;
-
-      const ac = getAircraft(f.aircraftId);
-      if (ac) {
-        const wear = Math.max(1, Math.round((calc.distanceKm / 1000) * 2));
-        ac.condition = Math.max(40, Number(ac.condition ?? 100) - wear);
-      }
-
-      addLedgerEntry({
-        type: "VOO_CONCLUIDO",
-        title: `Voo concluído: ${f.flightNumber} (${f.origin.code} → ${f.destination.code})`,
-        amount: calc.profit,
-        meta: { revenue: calc.revenue, costs: calc.costs, occupancy: calc.occupancy }
-      });
-
-      refreshAll();
-      alert(`Voo concluído!\nLucro: ${fmtMoney(calc.profit)}\nReceita: ${fmtMoney(calc.revenue)}\nCustos: ${fmtMoney(calc.costs)}`);
-    });
-  }
-
-  // =========================
-  // Clock UI
-  // =========================
-  function startClock() {
-    stopClock();
-    clockInterval = setInterval(() => {
-      const el = document.getElementById("nowTime");
-      if (el) el.textContent = fmtNow();
-    }, 1000);
-  }
-
-  function stopClock() {
-    if (clockInterval) clearInterval(clockInterval);
-    clockInterval = null;
-  }
-
-  // =========================
-  // Render Tabs
-  // =========================
-  function renderOverview() {
-    const d = window.flightData;
-    ensureLedger();
-
-    const last = (d.ledger || []).slice(0, 6);
-    const lastHtml = last.length
-      ? last.map(l => `
-          <div class="card" style="margin:10px 0;">
-            <div class="row">
-              <div>
-                <div class="cardTitle">${l.title}</div>
-                <div class="muted">${new Date(l.at).toLocaleString("pt-BR")}</div>
-              </div>
-              <div style="font-weight:900;">
-                ${l.amount >= 0 ? "+" : ""}${fmtMoney(l.amount)}
-              </div>
-            </div>
-          </div>
-        `).join("")
-      : `<div class="muted" style="margin-top:10px;">Sem lançamentos ainda.</div>`;
-
-    tabContent.innerHTML = `
+    return `
       <div class="card">
-        <div class="cardTitle">${d.company.name}</div>
-
-        <div class="row" style="margin-top:6px;">
-          <div><b>Dia/Hora:</b> <span id="nowTime">${fmtNow()}</span></div>
+        <div class="row">
+          <div>
+            <div class="h2">Status</div>
+            <div class="muted small">${clock()}</div>
+          </div>
+          <span class="badge">Offline</span>
         </div>
-
-        <div class="row" style="margin-top:10px;">
-          <div><b>Caixa:</b> ${fmtMoney(d.company.cash)}</div>
-          <div><b>Reputação:</b> ${Number(d.company.reputation || 0)}%</div>
+        <div class="hr"></div>
+        <div class="row">
+          <div class="muted">Caixa</div>
+          <div><b>${money(cash)}</b></div>
         </div>
-
-        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn" onclick="UIModule.openPanel(); UIModule.selectTab('fleet')">Frota</button>
-          <button class="btn ghost" onclick="UIModule.openPanel(); UIModule.selectTab('routes')">Rotas</button>
-          <button class="btn ghost" onclick="UIModule.openPanel(); UIModule.selectTab('flights')">Voos</button>
+        <div class="row">
+          <div class="muted">Reputação</div>
+          <div><b>${pct(rep)}</b></div>
+        </div>
+        <div class="hr"></div>
+        <div class="row">
+          <div class="muted">Frota</div>
+          <div class="small"><b>${fleetOk}</b> OK • <b>${fleetMaint}</b> Manutenção</div>
+        </div>
+        <div class="row">
+          <div class="muted">Voos</div>
+          <div class="small"><b>${flightsActive}</b> em rota • <b>${flightsDoneToday}</b> concluídos hoje</div>
         </div>
       </div>
 
       <div class="card">
-        <div class="cardTitle">Últimos lançamentos (Ledger)</div>
-        <div class="muted">Entradas recentes do seu financeiro.</div>
-        ${lastHtml}
+        <div class="h2">Últimos lançamentos</div>
+        <div class="muted small">Registro de lucros, compras e custos.</div>
+        <div class="hr"></div>
+        ${ledger || "<div class='muted small'>Sem lançamentos ainda.</div>"}
+      </div>
+
+      <div class="card">
+        <div class="h2">Ações rápidas</div>
+        <div class="hr"></div>
+        <button class="btn primary" data-action="goTab" data-tab="fleet">Comprar aeronave</button>
+        <div style="height:8px"></div>
+        <button class="btn" data-action="goTab" data-tab="routes">Criar rota</button>
+        <div style="height:8px"></div>
+        <button class="btn" data-action="goTab" data-tab="staff">Contratar equipe</button>
       </div>
     `;
-
-    startClock();
   }
 
-  function renderFleet() {
-    const d = window.flightData;
+  function viewFleet(){
+    const s = window.flightData;
+    const fleet = s.fleet||[];
+    const models = s.aircraftCatalog||[];
 
-    tabContent.innerHTML = `
-      <div class="card">
-        <div class="cardTitle">Sua Frota</div>
-        <div class="muted">Aeronaves compradas, condição e manutenção.</div>
-      </div>
-
-      ${(d.fleet || []).map(ac => {
-        const m = getModel(ac.modelId);
-        const cond = Number(ac.condition ?? 100);
-        const status = ac.status || "IDLE";
-
-        let condLabel = "Ótima";
-        if (cond < 85) condLabel = "Boa";
-        if (cond < 70) condLabel = "Atenção";
-        if (cond < 55) condLabel = "Crítica";
-
-        return `
-          <div class="card">
-            <div class="cardTitle">${m ? m.name : ac.modelId} — ${ac.tailNumber}</div>
-            <div class="row" style="margin-top:6px;">
-              <div><b>Status:</b> ${status}</div>
-              <div><b>Condição:</b> ${cond}% (${condLabel})</div>
-            </div>
-            <div class="muted" style="margin-top:6px;">
-              Alcance: ${m?.rangeKm ?? "-"} km | Assentos: ${m?.seats ?? "-"}
-            </div>
-            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-              <button class="btn" onclick="UIModule.performMaintenance('${ac.aircraftId}')">Manutenção</button>
-            </div>
-          </div>
-        `;
-      }).join("")}
-
-      <div class="card">
-        <div class="cardTitle">Comprar Aeronave (Catálogo DLC)</div>
-        ${(d.aircraftCatalog || []).map(m => `
-          <div class="card" style="margin:10px 0;">
-            <div class="cardTitle">${m.name}</div>
-            <div class="muted">${m.manufacturer} — ${m.seats} assentos — ${m.rangeKm} km</div>
-            <div style="margin-top:6px;"><b>Preço:</b> ${fmtMoney(m.price)}</div>
-            <div style="margin-top:10px;">
-              <button class="btn" onclick="UIModule.buyAircraft('${m.modelId}')">Comprar</button>
-            </div>
-          </div>
-        `).join("")}
-      </div>
-    `;
-
-    stopClock();
-  }
-
-  function renderRoutes() {
-    const d = window.flightData;
-    const idleFleet = (d.fleet || []).filter(f => f.status === "IDLE" || f.status === "ASSIGNED");
-
-    tabContent.innerHTML = `
-      <div class="card">
-        <div class="cardTitle">Criar Rota Aérea (Aeroportos DLC)</div>
-        <div class="muted">Crie rotas e o jogo gera voos automaticamente.</div>
-
-        <div style="margin-top:10px; display:grid; gap:10px;">
-          <label class="muted">Origem</label>
-          <select id="route_origin" class="input">
-            ${(d.airports || []).map(a => `<option value="${a.code}">${a.code} — ${a.city}</option>`).join("")}
-          </select>
-
-          <label class="muted">Destino</label>
-          <select id="route_destination" class="input">
-            ${(d.airports || []).map(a => `<option value="${a.code}">${a.code} — ${a.city}</option>`).join("")}
-          </select>
-
-          <label class="muted">Preço da passagem</label>
-          <input id="route_price" class="input" type="number" value="420" min="1" />
-
-          <label class="muted">Frequência por dia</label>
-          <input id="route_freq" class="input" type="number" value="2" min="1" max="12" />
-
-          <label class="muted">Aeronave</label>
-          <select id="route_aircraft" class="input">
-            <option value="">Selecione...</option>
-            ${idleFleet.map(ac => {
-              const m = getModel(ac.modelId);
-              return `<option value="${ac.aircraftId}">${ac.tailNumber} — ${m?.name ?? ac.modelId}</option>`;
-            }).join("")}
-          </select>
-
-          <button class="btn" onclick="UIModule.createRoute()">Criar rota + gerar voos</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="cardTitle">Rotas Criadas</div>
-        ${(d.routes || []).length === 0 ? `<div class="muted">Nenhuma rota ainda.</div>` : ""}
-      </div>
-
-      ${(d.routes || []).map(r => {
-        const o = getAirport(r.origin);
-        const de = getAirport(r.destination);
-        const ac = (d.fleet || []).find(x => x.aircraftId === r.assignedAircraftId);
-        const m = ac ? getModel(ac.modelId) : null;
-
-        return `
-          <div class="card">
-            <div class="cardTitle">${r.origin} → ${r.destination} ${r.active ? "" : "(INATIVA)"}</div>
-            <div class="muted">${o?.city ?? ""} → ${de?.city ?? ""}</div>
-            <div style="margin-top:6px;">
-              <b>Preço:</b> ${fmtMoney(r.ticketPrice)} |
-              <b>Freq/dia:</b> ${r.frequencyPerDay} |
-              <b>Aeronave:</b> ${ac ? `${ac.tailNumber} (${m?.name ?? ac.modelId})` : "N/D"}
-            </div>
-            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-              <button class="btn ghost" onclick="MapModule.focusRoute('${r.routeId}')">Ver no mapa</button>
-              <button class="btn" onclick="UIModule.toggleRoute('${r.routeId}')">${r.active ? "Desativar" : "Ativar"}</button>
-            </div>
-          </div>
-        `;
-      }).join("")}
-    `;
-
-    stopClock();
-  }
-
-  function renderFlights() {
-    const d = window.flightData;
-
-    tabContent.innerHTML = `
-      <div class="card">
-        <div class="cardTitle">Voos</div>
-        <div class="muted">
-          Conclua voos para gerar lucro e registrar no ledger.
-        </div>
-        <div style="margin-top:10px;">
-          <button class="btn" onclick="UIModule.regenerateFlights()">Regenerar voos</button>
-        </div>
-      </div>
-
-      ${(d.flights || []).map(f => {
-        const profitHtml = (f.status === "FINALIZADO" && typeof f.profit === "number")
-          ? `<div style="margin-top:8px;"><b>Lucro do voo:</b> ${fmtMoney(f.profit)} (Receita ${fmtMoney(f.revenue)} • Custos ${fmtMoney(f.costs)})</div>`
-          : `<div class="muted" style="margin-top:8px;">Lucro aparecerá quando o voo for concluído.</div>`;
-
-        const actionBtn = (f.status === "FINALIZADO")
-          ? `<button class="btn ghost" disabled style="opacity:.6; cursor:not-allowed;">Concluído</button>`
-          : `<button class="btn" onclick="UIModule.completeFlight('${f.id}')">Concluir voo</button>`;
-
-        return `
-          <div class="card">
-            <div class="cardTitle">${f.flightNumber} — ${f.origin.code} → ${f.destination.code}</div>
-            <div class="muted">${f.origin.city} → ${f.destination.city}</div>
-
-            <div style="margin-top:8px;">
-              <b>Status:</b> ${f.status}<br/>
-              <b>Vel:</b> ${f.speedKts} kts | <b>Alt:</b> ${f.altitudeFt} ft
-            </div>
-
-            ${profitHtml}
-
-            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-              <button class="btn" onclick="MapModule.focusFlight('${f.id}')">Ver no mapa</button>
-              <button class="btn ghost" onclick="GameModule.startFlight('${f.id}')">Iniciar Voo (3D)</button>
-              ${actionBtn}
-            </div>
-          </div>
-        `;
-      }).join("")}
-    `;
-
-    stopClock();
-  }
-
-  function renderStaff() {
-    const d = window.flightData;
-
-    tabContent.innerHTML = `
-      <div class="card">
-        <div class="cardTitle">Equipe Atual</div>
-        ${(d.staff || []).map(s => `
-          <div class="card" style="margin:10px 0;">
-            <div class="cardTitle">${s.name} — ${s.role}</div>
-            <div><b>Salário:</b> ${fmtMoney(s.salary)}</div>
-            <div><b>Moral:</b> ${s.morale}%</div>
-          </div>
-        `).join("")}
-      </div>
-
-      <div class="card">
-        <div class="cardTitle">Contratar Funcionários (Candidatos DLC)</div>
-        <div class="muted">Contratação tem taxa (2x salário).</div>
-
-        ${(d.candidates || []).length === 0 ? `<div class="muted" style="margin-top:10px;">Sem candidatos no momento.</div>` : ""}
-
-        ${(d.candidates || []).map(c => `
-          <div class="card" style="margin:10px 0;">
-            <div class="cardTitle">${c.name} — ${c.role}</div>
-            <div><b>Salário:</b> ${fmtMoney(c.salary)} | <b>Moral:</b> ${c.morale}%</div>
-            <div class="muted" style="margin-top:6px;">Taxa contratação: ${fmtMoney(c.salary * 2)}</div>
-            <div style="margin-top:10px;">
-              <button class="btn" onclick="UIModule.hireCandidate('${c.id}')">Contratar</button>
-            </div>
-          </div>
-        `).join("")}
-      </div>
-    `;
-
-    stopClock();
-  }
-
-  function renderMissions() {
-    const d = window.flightData;
-
-    tabContent.innerHTML = `
-      ${(d.missions || []).map(m => `
+    const cards = fleet.map(p=>{
+      const m = models.find(x=>x.modelId===p.modelId);
+      const cond = Math.round((p.condition||0)*100);
+      const badgeClass = cond >= 70 ? "good" : (cond >= 40 ? "" : "bad");
+      const status = p.status === "MANUTENCAO" ? "MANUTENÇÃO" : "OK";
+      const img = m?.imageRef || "assets/images/aircraft_narrow.png";
+      return `
         <div class="card">
-          <div class="cardTitle">${m.title} (${m.difficulty})</div>
-          <div class="muted">${m.description}</div>
-          <div style="margin-top:8px;"><b>Recompensa:</b> ${fmtMoney(m.reward)}</div>
-          <div style="margin-top:10px;">
-            <button class="btn" onclick="alert('Missão aceita: ${m.title}')">Aceitar</button>
+          <div class="row">
+            <div style="display:flex;gap:10px;align-items:center">
+              <img src="${img}" alt="" style="width:46px;height:46px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)"/>
+              <div>
+                <div><b>${escapeHtml(p.tail)}</b> • <span class="muted small">${escapeHtml(m?.name || p.modelId)}</span></div>
+                <div class="muted small">Condição: <b>${cond}%</b> • Status: <b>${status}</b></div>
+              </div>
+            </div>
+            <span class="badge ${badgeClass}">${cond}%</span>
+          </div>
+          <div class="hr"></div>
+          <div class="row">
+            <button class="btn" data-action="maintStart" data-tail="${escapeHtml(p.tail)}" ${p.status==="MANUTENCAO"?"disabled":""}>Entrar em manutenção</button>
+            <button class="btn primary" data-action="maintFinish" data-tail="${escapeHtml(p.tail)}" ${p.status!=="MANUTENCAO"?"disabled":""}>Concluir</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    // shop list (top 20 by price)
+    const shop = [...models].sort((a,b)=>a.price-b.price).slice(0, 24).map(m=>{
+      return `
+        <div class="card">
+          <div class="row">
+            <div style="display:flex;gap:10px;align-items:center">
+              <img src="${m.imageRef}" alt="" style="width:46px;height:46px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)"/>
+              <div>
+                <div><b>${escapeHtml(m.name)}</b></div>
+                <div class="muted small">${escapeHtml(m.category)} • ${m.seats} assentos • ${m.rangeKm} km</div>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="small"><b>${money(m.price)}</b></div>
+              <div class="muted small">${escapeHtml(m.modelId)}</div>
+            </div>
+          </div>
+          <div class="hr"></div>
+          <button class="btn primary" data-action="buyAircraft" data-model="${escapeHtml(m.modelId)}">Comprar</button>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div class="card">
+        <div class="h2">Sua frota</div>
+        <div class="muted small">Manutenção afeta confiabilidade e lucro. Condição baixa pode travar aeronave.</div>
+      </div>
+      ${cards || "<div class='card'><div class='muted'>Sem aeronaves. Compre uma abaixo.</div></div>"}
+      <div class="card">
+        <div class="h2">Loja de aeronaves</div>
+        <div class="muted small">Modelos genéricos (uso comercial). Você pode adicionar mais no modo DLC offline.</div>
+      </div>
+      ${shop}
+    `;
+  }
+
+  function viewRoutes(opts={}){
+    const s = window.flightData;
+    const routes = s.routes||[];
+    const airports = s.airports||[];
+
+    const routeCards = routes.map(r=>{
+      const o = airports.find(a=>a.code===r.origin);
+      const d = airports.find(a=>a.code===r.destination);
+      const demand = window.FlySimStore.computeDemand(r, s.company.reputation);
+      const load = window.FlySimStore.estimateLoadFactor(demand, r.ticketPrice);
+      const isSel = opts.focusRouteId && opts.focusRouteId===r.routeId;
+      return `
+        <div class="card" style="${isSel ? "border-color: rgba(57,183,255,.45); background: rgba(57,183,255,.08)" : ""}">
+          <div class="row">
+            <div>
+              <div><b>${escapeHtml(r.origin)}→${escapeHtml(r.destination)}</b> <span class="muted small">(${escapeHtml(r.routeId)})</span></div>
+              <div class="muted small">${escapeHtml(o?.city||"")} → ${escapeHtml(d?.city||"")} • ${r.frequencyPerDay}/dia • Mín: ${escapeHtml(r.minCategory||"regional")}</div>
+            </div>
+            <span class="badge">${money(r.ticketPrice)} ticket</span>
+          </div>
+          <div class="hr"></div>
+          <div class="row">
+            <div class="small muted">Demanda</div>
+            <div class="small"><b>${pct(demand)}</b> • Ocupação est.: <b>${pct(load)}</b></div>
+          </div>
+          <div style="height:10px"></div>
+          <button class="btn" data-action="focusRoute" data-route="${escapeHtml(r.routeId)}">Destacar no mapa</button>
+        </div>
+      `;
+    }).join("");
+
+    const airportOptions = airports
+      .slice()
+      .sort((a,b)=>a.code.localeCompare(b.code))
+      .map(a=>`<option value="${escapeHtml(a.code)}">${escapeHtml(a.code)} — ${escapeHtml(a.city)}</option>`)
+      .join("");
+
+    return `
+      <div class="card">
+        <div class="h2">Rotas</div>
+        <div class="muted small">Crie rotas e o sistema gera voos automaticamente a cada dia.</div>
+      </div>
+
+      <div class="card">
+        <div class="h2">Criar rota</div>
+        <label>Origem</label>
+        <select class="input" id="routeOrigin">${airportOptions}</select>
+        <label>Destino</label>
+        <select class="input" id="routeDest">${airportOptions}</select>
+        <label>Preço do ticket</label>
+        <input class="input" id="routePrice" type="number" value="420" min="50" step="10"/>
+        <label>Frequência (voos por dia)</label>
+        <input class="input" id="routeFreq" type="number" value="2" min="1" step="1"/>
+        <label>Demanda base (0 a 1)</label>
+        <input class="input" id="routeDemand" type="number" value="0.65" min="0" max="1" step="0.05"/>
+        <label>Competição (0 a 1)</label>
+        <input class="input" id="routeComp" type="number" value="0.30" min="0" max="1" step="0.05"/>
+        <label>Categoria mínima</label>
+        <select class="input" id="routeMinCat">
+          <option value="turboprop">turboprop</option>
+          <option value="regional" selected>regional</option>
+          <option value="narrow">narrow</option>
+          <option value="wide">wide</option>
+          <option value="jumbo">jumbo</option>
+        </select>
+        <div style="height:10px"></div>
+        <button class="btn primary" data-action="createRoute">Criar</button>
+        <div id="routeMsg" class="muted small" style="margin-top:8px"></div>
+      </div>
+
+      ${routeCards || "<div class='card'><div class='muted'>Nenhuma rota ainda.</div></div>"}
+    `;
+  }
+
+  function viewFlights(opts={}){
+    const s = window.flightData;
+    const flights = (s.flights||[]).slice().sort((a,b)=> (b.day-a.day) || String(b.id).localeCompare(String(a.id)));
+    const models = s.aircraftCatalog||[];
+
+    const focusId = opts.focusFlightId;
+
+    const cards = flights.slice(0, 18).map(f=>{
+      const m = models.find(x=>x.modelId===f.modelId);
+      const status = f.status === "FINALIZADO" ? "FINALIZADO" : "EM ROTA";
+      const badgeClass = f.status==="FINALIZADO" ? (f.profit>=0?"good":"bad") : "";
+      const isSel = focusId && String(focusId)===String(f.id);
+
+      return `
+        <div class="card" style="${isSel ? "border-color: rgba(57,183,255,.45); background: rgba(57,183,255,.08)" : ""}">
+          <div class="row">
+            <div>
+              <div><b>${escapeHtml(f.flightNumber)}</b> • ${escapeHtml(f.origin.code)}→${escapeHtml(f.destination.code)}</div>
+              <div class="muted small">${escapeHtml(m?.name || f.modelId)} • ${escapeHtml(f.tail || "")} • ${Math.round(f.distanceKm)} km</div>
+            </div>
+            <span class="badge ${badgeClass}">${status}</span>
+          </div>
+
+          <div class="hr"></div>
+
+          ${f.status==="FINALIZADO" ? `
+            <div class="row"><div class="muted small">Receita</div><div class="small"><b>${money(f.revenue)}</b></div></div>
+            <div class="row"><div class="muted small">Custo</div><div class="small"><b>${money(-Math.abs(f.cost))}</b></div></div>
+            <div class="row"><div class="muted small">Lucro</div><div class="small"><b>${money(f.profit)}</b></div></div>
+          ` : `
+            <div class="row"><div class="muted small">Progresso</div><div class="small"><b>${Math.round((f.progress01||0)*100)}%</b></div></div>
+            <div style="height:10px"></div>
+            <button class="btn" data-action="focusFlight" data-flight="${escapeHtml(f.id)}">Destacar no mapa</button>
+          `}
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div class="card">
+        <div class="h2">Voos</div>
+        <div class="muted small">Voos são gerados automaticamente a partir das rotas. Concluir um voo atualiza o ledger.</div>
+      </div>
+      ${cards || "<div class='card'><div class='muted'>Sem voos no momento.</div></div>"}
+    `;
+  }
+
+  function viewStaff(){
+    const s = window.flightData;
+    const staff = s.staff||[];
+    const candidates = s.candidates||[];
+
+    const staffCards = staff.map(p=>`
+      <div class="card">
+        <div class="row">
+          <div>
+            <div><b>${escapeHtml(p.name)}</b> • <span class="muted small">${escapeHtml(p.role)}</span></div>
+            <div class="muted small">Skill: <b>${pct(p.skill||0)}</b> • Moral: <b>${pct(p.morale||0)}</b></div>
+          </div>
+          <span class="badge">${money(p.salary)}/ano</span>
+        </div>
+      </div>
+    `).join("");
+
+    const candCards = candidates.map(c=>`
+      <div class="card">
+        <div class="row">
+          <div>
+            <div><b>${escapeHtml(c.name)}</b> • <span class="muted small">${escapeHtml(c.role)}</span></div>
+            <div class="muted small">Skill: <b>${pct(c.skill||0)}</b> • Bônus contratação: <b>${money(Math.round((c.salary||0)*0.2))}</b></div>
+          </div>
+          <span class="badge">${money(c.salary)}/ano</span>
+        </div>
+        <div class="hr"></div>
+        <button class="btn primary" data-action="hire" data-candidate="${escapeHtml(c.id)}">Contratar</button>
+      </div>
+    `).join("");
+
+    return `
+      <div class="card">
+        <div class="h2">Equipe</div>
+        <div class="muted small">Equipe afeta eficiência (versões futuras adicionam efeitos avançados).</div>
+      </div>
+      <div class="card">
+        <div class="h2">Funcionários</div>
+        <div class="muted small">Salários são pagos diariamente.</div>
+      </div>
+      ${staffCards || "<div class='card'><div class='muted'>Sem equipe.</div></div>"}
+      <div class="card">
+        <div class="h2">Candidatos</div>
+        <div class="muted small">Contrate para crescer e operar mais rotas.</div>
+      </div>
+      ${candCards || "<div class='card'><div class='muted'>Nenhum candidato disponível.</div></div>"}
+    `;
+  }
+
+  function viewMissions(){
+    const s = window.flightData;
+    const missions = s.missions||[];
+    return `
+      <div class="card">
+        <div class="h2">Missões</div>
+        <div class="muted small">Objetivos para orientar progresso (offline). Recompensas entram no caixa.</div>
+      </div>
+      ${missions.map(m=>`
+        <div class="card">
+          <div class="row">
+            <div>
+              <div><b>${escapeHtml(m.name)}</b></div>
+              <div class="muted small">${escapeHtml(m.desc)}</div>
+            </div>
+            <span class="badge good">+${money(m.reward)}</span>
           </div>
         </div>
       `).join("")}
+      <div class="card">
+        <button class="btn" data-action="checkMissions">Checar progresso</button>
+        <div id="missionMsg" class="muted small" style="margin-top:8px"></div>
+      </div>
     `;
-
-    stopClock();
   }
 
-  function renderTab(tab) {
-    ensureLedger();
+  function viewSettings(){
+    const s = window.flightData;
+    const dlc = window.FlySimStore.loadDlc();
+    return `
+      <div class="card">
+        <div class="h2">Configuração</div>
+        <div class="muted small">Jogo 100% offline. Você pode exportar/importar DLC local (catálogo/aeroportos).</div>
+      </div>
 
-    if (tab === "overview") return renderOverview();
-    if (tab === "fleet") return renderFleet();
-    if (tab === "routes") return renderRoutes();
-    if (tab === "flights") return renderFlights();
-    if (tab === "staff") return renderStaff();
-    if (tab === "missions") return renderMissions();
+      <div class="card">
+        <div class="h2">DLC offline</div>
+        <div class="muted small">O DLC é salvo no <b>localStorage</b> do navegador/dispositivo.</div>
+        <div class="hr"></div>
+        <button class="btn" data-action="exportDlc">Exportar DLC (copiar JSON)</button>
+        <div style="height:8px"></div>
+        <button class="btn" data-action="importDlc">Importar DLC (colar JSON)</button>
+        <div id="dlcMsg" class="muted small" style="margin-top:8px"></div>
+      </div>
 
-    tabContent.innerHTML = `<div class="card"><div class="muted">Em construção.</div></div>`;
-    stopClock();
+      <div class="card">
+        <div class="h2">Salvar / Reset</div>
+        <div class="muted small">Cuidado: reset apaga progresso local.</div>
+        <div class="hr"></div>
+        <button class="btn danger" data-action="resetSave">Resetar jogo</button>
+      </div>
+
+      <div class="card">
+        <div class="h2">Sobre</div>
+        <div class="muted small">Versão offline pronta para evoluir para AAA: mais regiões, ATC, clima, tráfego AI e economia avançada.</div>
+      </div>
+    `;
   }
 
-  // =========================
-  // Init / Events
-  // =========================
-  function init() {
-    sidePanel = document.getElementById("sidePanel");
-    backdrop = document.getElementById("backdrop");
-    menuBtn = document.getElementById("menuBtn");
-    closePanel = document.getElementById("closePanel");
-    tabContent = document.getElementById("tabContent");
-
-    if (menuBtn) menuBtn.addEventListener("click", openPanel);
-    if (closePanel) closePanel.addEventListener("click", closePanelFn);
-    if (backdrop) backdrop.addEventListener("click", closePanelFn);
-
-    document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
-      btn.addEventListener("click", () => selectTab(btn.dataset.tab));
+  function wireActions(root, tab, opts){
+    // go tab
+    root.querySelectorAll("[data-action='goTab']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const t = btn.dataset.tab;
+        document.querySelector(`.tabBtn[data-tab='${t}']`)?.click();
+      });
     });
 
-    // Realtime DLC: re-render do que estiver aberto
-    window.addEventListener("dlc-updated", () => {
-      renderTab(activeTab);
+    // fleet actions
+    root.querySelectorAll("[data-action='buyAircraft']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const modelId = btn.dataset.model;
+        const res = window.FlySimStore.buyAircraft(modelId);
+        alert(res.ok ? `Compra OK! Nova aeronave: ${res.tail}` : `Falha: ${res.reason}`);
+      });
+    });
+    root.querySelectorAll("[data-action='maintStart']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const tail = btn.dataset.tail;
+        const ok = window.FlySimStore.startMaintenance(tail);
+        if(!ok) alert("Não foi possível iniciar manutenção.");
+      });
+    });
+    root.querySelectorAll("[data-action='maintFinish']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const tail = btn.dataset.tail;
+        const ok = window.FlySimStore.finishMaintenance(tail);
+        if(!ok) alert("Não foi possível concluir manutenção.");
+      });
     });
 
-    renderTab(activeTab);
+    // routes
+    root.querySelectorAll("[data-action='createRoute']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const o = root.querySelector("#routeOrigin")?.value;
+        const d = root.querySelector("#routeDest")?.value;
+        const price = Number(root.querySelector("#routePrice")?.value || 0);
+        const freq = Number(root.querySelector("#routeFreq")?.value || 1);
+        const demand = Number(root.querySelector("#routeDemand")?.value || 0.6);
+        const comp = Number(root.querySelector("#routeComp")?.value || 0.3);
+        const minCat = root.querySelector("#routeMinCat")?.value || "regional";
+        const res = window.FlySimStore.createRoute(o,d,price,freq,demand,comp,minCat);
+        const msg = root.querySelector("#routeMsg");
+        if(msg) msg.textContent = res.ok ? "Rota criada!" : ("Erro: " + res.reason);
+      });
+    });
+    root.querySelectorAll("[data-action='focusRoute']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const id = btn.dataset.route;
+        window.MapModule?.setSelected({type:"route", id});
+      });
+    });
+
+    // flights
+    root.querySelectorAll("[data-action='focusFlight']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const id = btn.dataset.flight;
+        window.MapModule?.setSelected({type:"flight", id});
+      });
+    });
+
+    // staff hire
+    root.querySelectorAll("[data-action='hire']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const id = btn.dataset.candidate;
+        const res = window.FlySimStore.hire(id);
+        alert(res.ok ? "Contratado!" : ("Falha: " + res.reason));
+      });
+    });
+
+    // missions
+    root.querySelectorAll("[data-action='checkMissions']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const msg = root.querySelector("#missionMsg");
+        const gained = checkMissions();
+        if(msg) msg.textContent = gained>0 ? `Recompensas liberadas: ${money(gained)}` : "Nenhuma missão concluída agora.";
+      });
+    });
+
+    // settings
+    root.querySelectorAll("[data-action='exportDlc']").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const dlc = window.FlySimStore.loadDlc() || {};
+        const json = JSON.stringify(dlc, null, 2);
+        try{
+          await navigator.clipboard.writeText(json);
+          root.querySelector("#dlcMsg").textContent = "DLC copiado para a área de transferência.";
+        }catch(e){
+          root.querySelector("#dlcMsg").textContent = "Não consegui copiar. Selecione e copie manualmente:";
+          prompt("Copie o JSON do DLC:", json);
+        }
+      });
+    });
+
+    root.querySelectorAll("[data-action='importDlc']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const json = prompt("Cole o JSON do DLC offline (aircraftCatalog/airports/missions/candidates):");
+        if(!json) return;
+        try{
+          const obj = JSON.parse(json);
+          window.FlySimStore.saveDlc(obj);
+          root.querySelector("#dlcMsg").textContent = "DLC importado. Recarregue a página para aplicar.";
+        }catch(e){
+          root.querySelector("#dlcMsg").textContent = "JSON inválido.";
+        }
+      });
+    });
+
+    root.querySelectorAll("[data-action='resetSave']").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        if(confirm("Resetar o jogo? Isso apaga todo o progresso local.")){
+          window.FlySimStore.clearSave();
+          localStorage.removeItem("flysim_tutorial_done");
+          location.reload();
+        }
+      });
+    });
   }
 
-  function openPanel() {
-    if (!sidePanel || !backdrop) return;
-    sidePanel.classList.remove("hidden");
-    backdrop.classList.remove("hidden");
-    sidePanel.setAttribute("aria-hidden", "false");
+  function checkMissions(){
+    const s = window.flightData;
+    let gained = 0;
+
+    for(const m of (s.missions||[])){
+      if(m.done) continue;
+      if(m.type==="fleetSize"){
+        if((s.fleet||[]).length >= m.target){
+          m.done = true; gained += (m.reward||0);
+        }
+      }else if(m.type==="profitFlights"){
+        const done = (s.flights||[]).filter(f=>f.status==="FINALIZADO" && f.profit>0).length;
+        if(done >= m.target){
+          m.done = true; gained += (m.reward||0);
+        }
+      }
+    }
+
+    if(gained>0){
+      s.company.cash = Math.round((s.company.cash||0) + gained);
+      s.ledger.unshift({ ts: Date.now(), type:"MISSAO", ref:"Recompensa", detail:"Missões concluídas", amount:gained });
+      s.ledger = s.ledger.slice(0, 40);
+      window.FlySimStore.save(s);
+    }
+    return gained;
   }
 
-  function closePanelFn() {
-    if (!sidePanel || !backdrop) return;
-    sidePanel.classList.add("hidden");
-    backdrop.classList.add("hidden");
-    sidePanel.setAttribute("aria-hidden", "true");
+  // -------- tutorial
+  const TUTORIAL_STEPS = [
+    {
+      title: "1) Visão geral",
+      body: "Este é um simulador de gestão + voos (100% offline). O painel mostra Dia/Hora, Caixa e Reputação. O ledger registra lucros e custos."
+    },
+    {
+      title: "2) Mapa tático",
+      body: "O mapa é offline: rotas são linhas e aviões são pontos em movimento. Toque em uma rota ou avião para abrir detalhes."
+    },
+    {
+      title: "3) Frota",
+      body: "Em Frota você compra aeronaves e cuida da manutenção. Condição baixa aumenta risco e trava aeronave em manutenção."
+    },
+    {
+      title: "4) Rotas",
+      body: "Crie rotas definindo origem/destino, ticket e demanda. O sistema gera voos automaticamente todo dia, usando aeronaves compatíveis."
+    },
+    {
+      title: "5) Economia real por rota",
+      body: "O lucro do voo depende de demanda, competição, reputação, custo de combustível e taxas. Reputação sobe com lucro e cai com prejuízo."
+    },
+    {
+      title: "Pronto!",
+      body: "Você pode expandir comprando aeronaves, contratando equipe e criando rotas lucrativas. Em Config, exporte/importa DLC offline."
+    }
+  ];
+
+  function setupTutorial(){
+    const btn = document.getElementById("tutorialBtn");
+    btn?.addEventListener("click", ()=> openTutorial(0));
+    document.getElementById("tutorialClose")?.addEventListener("click", closeTutorial);
   }
 
-  function selectTab(tab) {
-    activeTab = tab;
-    document.querySelectorAll(".tab[data-tab]").forEach((b) => b.classList.remove("active"));
-    const current = document.querySelector(`.tab[data-tab="${tab}"]`);
-    if (current) current.classList.add("active");
-    renderTab(tab);
+  let tutIndex = 0;
+  function openTutorial(i){
+    tutIndex = Math.max(0, Math.min(TUTORIAL_STEPS.length-1, i));
+    const overlay = document.getElementById("tutorialOverlay");
+    overlay.classList.remove("hidden");
+    renderTutorialStep();
+    document.getElementById("tutorialPrev").onclick = ()=>{ if(tutIndex>0){ tutIndex--; renderTutorialStep(); } };
+    document.getElementById("tutorialNext").onclick = ()=>{ 
+      if(tutIndex < TUTORIAL_STEPS.length-1){ tutIndex++; renderTutorialStep(); }
+      else{ localStorage.setItem("flysim_tutorial_done","1"); closeTutorial(); }
+    };
   }
 
-  // =========================
-  // Public API
-  // =========================
-  return {
-    init,
-    openPanel,
-    closePanel: closePanelFn,
-    selectTab,
-    buyAircraft,
-    hireCandidate,
-    createRoute,
-    toggleRoute,
-    regenerateFlights,
-    performMaintenance,
-    completeFlight
-  };
+  function closeTutorial(){
+    document.getElementById("tutorialOverlay")?.classList.add("hidden");
+  }
+
+  function renderTutorialStep(){
+    const step = TUTORIAL_STEPS[tutIndex];
+    const body = document.getElementById("tutorialBody");
+    const stepEl = document.getElementById("tutorialStep");
+    const next = document.getElementById("tutorialNext");
+    const prev = document.getElementById("tutorialPrev");
+    if(!body) return;
+
+    body.innerHTML = `
+      <div class="title">${escapeHtml(step.title)}</div>
+      <p>${escapeHtml(step.body)}</p>
+      <p class="small muted">Dica: no mobile, use o botão ☰ para abrir/fechar o painel.</p>
+    `;
+    stepEl.textContent = `${tutIndex+1}/${TUTORIAL_STEPS.length}`;
+    prev.disabled = tutIndex===0;
+    next.textContent = (tutIndex===TUTORIAL_STEPS.length-1) ? "Concluir" : "Próximo";
+  }
+
+  // helpers
+  function escapeHtml(str){
+    return String(str ?? "").replace(/[&<>"']/g, (m)=>({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  window.UIModule = { init };
+
+  // bootstrap
+  window.addEventListener("DOMContentLoaded", ()=> window.UIModule.init());
 })();
