@@ -1,10 +1,45 @@
 <!DOCTYPE html>
-<html lang="pt-BR"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FlySim Etapa 3</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-</head><body>
-<div id="map" style="height:100vh"></div>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlySim 2026</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+html,body{margin:0;height:100%;background:#020617;color:#fff;font-family:system-ui}
+#map{position:absolute;inset:0;z-index:1}
+#panel{
+ position:absolute;
+ top:0;right:0;
+ width:360px;height:100%;
+ background:#0f172a;
+ z-index:1000;
+ overflow:auto;
+ box-shadow:-6px 0 20px rgba(0,0,0,.6)
+}
+.card2{background:rgba(255,255,255,.06);border-radius:16px;padding:12px;margin:10px}
+.kpi{font-size:18px;font-weight:700}
+button{padding:8px 12px;border-radius:10px;border:0;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<aside id="panel">
+  <div class="card2">
+    <div class="kpi">FlySim 2026</div>
+    <div id="clockText"></div>
+    <div>Caixa: <span id="cashText"></span></div>
+    <div>Reputação: <span id="repText"></span></div>
+    <div>Modo: <span id="modeText"></span></div>
+  </div>
+  <div id="panelBody" class="card2">
+    Painel ativo. Jogo carregado corretamente.
+  </div>
+</aside>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="js/data.js"></script>
 <script src="js/store.js"></script>
@@ -12,5 +47,9 @@
 <script src="js/game.js"></script>
 <script src="js/map.js"></script>
 <script src="js/ui.js"></script>
-<script>MapModule.init();GameModule.init();</script>
-</body></html>
+<script src="js/bootstrap.js"></script>
+<script>
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js');}
+</script>
+</body>
+</html>
