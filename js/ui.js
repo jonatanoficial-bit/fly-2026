@@ -8,6 +8,8 @@ window.UIModule = (function(){
     $("menuBtn")?.addEventListener("click", ()=> openPanel(true));
     $("closePanelBtn")?.addEventListener("click", ()=> openPanel(false));
 
+    document.getElementById("overlay")?.addEventListener("click", ()=> openPanel(false));
+
     document.querySelectorAll("#tabs [data-tab]").forEach(btn=>{
       btn.addEventListener("click", ()=>{
         document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.classList.remove("active"));
@@ -34,7 +36,14 @@ window.UIModule = (function(){
   function openPanel(on){
     const p=$("panel");
     if(!p) return;
-    if(on) p.classList.remove("hidden"); else p.classList.add("hidden");
+    const ov = document.getElementById("overlay");
+    if(on){
+      p.classList.remove("hidden");
+      if(ov && window.matchMedia("(max-width: 860px)").matches) ov.classList.add("show");
+    } else {
+      p.classList.add("hidden");
+      if(ov) ov.classList.remove("show");
+    }
   }
 
   function money(v){
