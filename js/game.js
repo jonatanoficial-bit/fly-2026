@@ -1,1 +1,8 @@
-// game.js completo enviado no chat
+
+window.GameModule={
+ init(){
+  setInterval(()=>{
+   window.dispatchEvent(new Event("game-updated"));
+  },1000);
+ }
+};
