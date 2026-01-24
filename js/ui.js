@@ -1,2 +1,1 @@
-// js/ui.js - Visual AAA (Etapa 4C)
-console.log('UI Visual AAA ativa');
+window.UIModule={init(){this.refresh();window.addEventListener('game-updated',()=>this.refresh())},refresh(){const d=flightData;clockText.textContent=`Dia ${d.company.day}`;cashText.textContent=d.company.cash.toLocaleString();repText.textContent=Math.round(d.company.reputation01*100)+'%';}};

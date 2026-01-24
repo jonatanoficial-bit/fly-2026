@@ -1,1 +1,1 @@
-// game.js completo enviado no chat
+window.GameModule={init(){setInterval(()=>{window.flightData.company.minuteOfDay+=10;if(window.flightData.company.minuteOfDay>=1440){window.flightData.company.minuteOfDay=0;window.flightData.company.day++;EconomyModule.applyDailyOps(window.flightData)}window.dispatchEvent(new Event('game-updated'))},1000)}};
