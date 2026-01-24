@@ -47,7 +47,6 @@ window.MapModule = (function () {
     // Reagir a troca de rede
     window.addEventListener("online", () => {
       if (mode !== "LEAFLET" && !!window.L) {
-        // troca para Leaflet
         trySwitchToLeaflet();
       }
     });
@@ -72,9 +71,7 @@ window.MapModule = (function () {
   function trySwitchToLeaflet() {
     const el = document.getElementById(config.mapId);
     if (!el) return;
-    // limpa offline
     destroyOffline();
-    // inicializa leaflet
     mode = "LEAFLET";
     initLeaflet();
     refresh();
@@ -83,9 +80,7 @@ window.MapModule = (function () {
   function trySwitchToOffline() {
     const el = document.getElementById(config.mapId);
     if (!el) return;
-    // destrói leaflet
     destroyLeaflet();
-    // inicializa offline
     mode = "OFFLINE";
     initOfflineCanvas();
     refresh();
@@ -441,7 +436,6 @@ window.MapModule = (function () {
       return;
     }
 
-    // offline: só redesenha e pronto (sem câmera real)
     refreshOffline();
   }
 
