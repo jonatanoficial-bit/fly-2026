@@ -1,7 +1,8 @@
+// js/bootstrap.js
 (function(){
- const s=FlySimStore.load();
- if(s)window.flightData=s;
- MapModule.init();
- UIModule.init();
- GameModule.init();
+  const saved = window.FlySimStore?.load?.();
+  if(saved && typeof saved === "object") window.flightData = saved;
+  window.MapModule?.init?.();
+  window.UIModule?.init?.();
+  window.GameModule?.init?.();
 })();
