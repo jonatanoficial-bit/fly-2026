@@ -1,1 +1,1 @@
-window.UIModule={init(){this.refresh();window.addEventListener('game-updated',()=>this.refresh())},refresh(){const d=flightData;clockText.textContent=`Dia ${d.company.day}`;cashText.textContent=d.company.cash.toLocaleString();repText.textContent=Math.round(d.company.reputation01*100)+'%';}};
+window.UIModule={refresh(){}};

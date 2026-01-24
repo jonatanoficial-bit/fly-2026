@@ -1,1 +1,1 @@
-window.FlySimStore={save:(d)=>localStorage.setItem('flysim-save',JSON.stringify(d)),load:()=>JSON.parse(localStorage.getItem('flysim-save')||'null')};
+window.FlySimStore={save:(d)=>localStorage.setItem("flysim",JSON.stringify(d)),load:()=>JSON.parse(localStorage.getItem("flysim")||"null")};

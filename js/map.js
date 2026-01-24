@@ -1,1 +1,1 @@
-window.MapModule={init(){const m=L.map('map').setView([20,0],2);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(m);}};
+window.MapModule={init(){const m=L.map('map').setView([-23,-46],4);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);},refresh(){}};
