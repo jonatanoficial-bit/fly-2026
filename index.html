@@ -1,16 +1,37 @@
-<!DOCTYPE html>
-<html lang="pt-BR"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FlySim Etapa 3</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-</head><body>
-<div id="map" style="height:100vh"></div>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FlySim 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+html,body{margin:0;height:100%;background:#020617;color:#fff;font-family:system-ui}
+#map{position:fixed;top:56px;left:0;right:0;bottom:0}
+#topbar{position:fixed;top:0;left:0;right:0;height:56px;background:#020617ee;display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+#panel{position:fixed;top:56px;left:0;right:0;bottom:0;background:#0f172a;transform:translateY(100%);transition:.25s;padding:12px}
+#panel.show{transform:translateY(0)}
+.card{background:#ffffff12;border-radius:12px;padding:12px;margin-bottom:12px}
+button{padding:10px;border-radius:10px;border:0}
+</style>
+</head>
+<body>
+<div id="topbar">
+ <b>FlySim 2026</b>
+ <button id="menuBtn">☰</button>
+</div>
+<div id="map"></div>
+<div id="panel">
+ <div class="card">Dia: <span id="clockText"></span></div>
+ <div class="card">Caixa: <span id="cashText"></span></div>
+ <div class="card">Reputação: <span id="repText"></span></div>
+ <button id="advanceDayBtn">Avançar dia</button>
+</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="js/data.js"></script>
-<script src="js/store.js"></script>
-<script src="js/economy.js"></script>
 <script src="js/game.js"></script>
-<script src="js/map.js"></script>
 <script src="js/ui.js"></script>
-<script>MapModule.init();GameModule.init();</script>
-</body></html>
+<script src="js/map.js"></script>
+<script src="js/bootstrap.js"></script>
+</body>
+</html>
