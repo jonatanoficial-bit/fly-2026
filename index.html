@@ -2,20 +2,52 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FlySim Etapa 4C</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlySim 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-body{margin:0;background:#0b1220;color:#fff;font-family:system-ui}
-.card{background:rgba(255,255,255,.06);border-radius:18px;padding:14px;margin:10px}
-img.aircraft{width:100%;max-width:260px;border-radius:14px}
+html,body{margin:0;height:100%;background:#0b1220;color:#fff;font-family:system-ui}
+#map{height:100%}
+#panel{position:absolute;top:0;right:0;width:380px;height:100%;background:#0f172a;overflow:auto}
+.hidden{display:none}
+.card2{background:rgba(255,255,255,.06);border-radius:16px;padding:12px;margin:10px}
+.row{display:flex;gap:10px;align-items:center}
+.kpi{font-size:18px;font-weight:700}
+.muted{opacity:.7}
+.small{font-size:12px}
+button{padding:8px 12px;border-radius:10px;border:0;cursor:pointer}
+select,input{border-radius:10px}
 </style>
 </head>
 <body>
-<div class="card">
-<h2>Visual AAA Ativo</h2>
-<p>Imagens genéricas e cards premium carregados.</p>
-<img class="aircraft" src="assets/aircraft/narrow.png">
-</div>
+<div id="map"></div>
+
+<aside id="panel">
+  <div id="tabs">
+    <button data-tab="home">Home</button>
+    <button data-tab="fleet">Frota</button>
+    <button data-tab="routes">Rotas</button>
+    <button data-tab="flights">Voos</button>
+    <button data-tab="staff">Equipe</button>
+    <button data-tab="ledger">Caixa</button>
+  </div>
+  <div class="card2">
+    <div>Status: <span id="statusText"></span></div>
+    <div id="clockText"></div>
+    <div>Caixa: <span id="cashText"></span></div>
+    <div>Reputação: <span id="repText"></span></div>
+  </div>
+  <pre id="ledgerMini" class="card2"></pre>
+  <div id="panelBody"></div>
+</aside>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/economy.js"></script>
+<script src="js/game.js"></script>
+<script src="js/map.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/bootstrap.js"></script>
 </body>
 </html>
